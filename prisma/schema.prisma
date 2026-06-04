@@ -1,0 +1,174 @@
+// SocialPilot AI — data model (Neon Postgres, free tier).
+// Every table is scoped by tenantId. All tokens are stored ENCRYPTED
+// (AES-256-GCM via TOKEN_ENC_KEY). In DEMO_MODE the app uses the mock
+// data in src/lib/demo/data.ts and never touches this database.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String // hashed
+  createdAt DateTime @default(now())
+
+  businessProfile BusinessProfile?
+  brandKit        BrandKit?
+  pages           ConnectedPage[]
+  adAccounts      AdAccount[]
+  posts           Post[]
+  calendar        ContentCalendar[]
+  recommendations AdRecommendation[]
+  campaigns       Campaign[]
+  leads           Lead[]
+}
+
+model BusinessProfile {
+  id       String @id @default(cuid())
+  tenantId String @unique
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name     String
+  type     String // coaching | gym | playschool | abacus | salon | restaurant
+  city     String
+  language String
+  tone     String
+  audience String
+}
+
+model BrandKit {
+  id       String @id @default(cuid())
+  tenantId String @unique
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  logoUrl   String?
+  logoText  String
+  primary   String
+  secondary String
+  accent    String
+  font      String
+}
+
+model ConnectedPage {
+  id        String  @id @default(cuid())
+  tenantId  String
+  tenant    Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  pageId    String
+  name      String
+  category  String?
+  followers Int      @default(0)
+  pageToken String // ENCRYPTED
+  connected Boolean  @default(true)
+}
+
+model AdAccount {
+  id        String  @id @default(cuid())
+  tenantId  String
+  tenant    Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  actId     String
+  name      String
+  currency  String  @default("INR")
+  token     String // ENCRYPTED
+  fundingOk Boolean @default(false)
+  isSandbox Boolean @default(true)
+}
+
+model Post {
+  id          String    @id @default(cuid())
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  type        String // image | video | reel | text
+  status      String // draft | scheduled | published | failed
+  title       String
+  caption     String
+  hashtags    String[]
+  music       String?
+  assetUrl    String?
+  scheduledAt DateTime?
+  publishedAt DateTime?
+  fbPostId    String?
+  source      String    @default("studio")
+
+  analytics PostAnalytics?
+}
+
+model PostAnalytics {
+  id             String   @id @default(cuid())
+  postId         String   @unique
+  post           Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  reach          Int      @default(0)
+  impressions    Int      @default(0)
+  reactions      Int      @default(0)
+  comments       Int      @default(0)
+  shares         Int      @default(0)
+  videoViews     Int      @default(0)
+  clicks         Int      @default(0)
+  engagementRate Float    @default(0)
+  syncedAt       DateTime @default(now())
+}
+
+model ContentCalendar {
+  id       String   @id @default(cuid())
+  tenantId String
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  date     DateTime
+  type     String
+  status   String
+  postId   String?
+}
+
+model AdRecommendation {
+  id        String @id @default(cuid())
+  tenantId  String
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  postId    String
+  objective String // engagement | leads | traffic | awareness
+  audience  Json
+  budget    Int
+  days      Int
+  rationale String
+  score     Int    @default(0)
+  status    String @default("pending") // pending | approved | rejected
+}
+
+model Campaign {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name          String
+  fbCampaignId  String
+  adsetId       String
+  adId          String
+  objective     String
+  status        String   @default("PAUSED") // PAUSED | ACTIVE | COMPLETED
+  isSandbox     Boolean  @default(true)
+  dailyBudget   Int
+  days          Int
+  spend         Float    @default(0)
+  reach         Int      @default(0)
+  results       Int      @default(0)
+  costPerResult Float    @default(0)
+  createdAt     DateTime @default(now())
+
+  leads Lead[]
+}
+
+model Lead {
+  id           String   @id @default(cuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  campaignId   String
+  campaign     Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  name         String
+  phone        String?
+  email        String?
+  interest     String?
+  isTest       Boolean  @default(false)
+  createdAt    DateTime @default(now())
+}
