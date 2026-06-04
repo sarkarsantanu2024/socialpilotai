@@ -12,6 +12,7 @@ export interface FbPage {
   token: string;
   category?: string;
   picture?: string; // page profile photo URL (used as the brand logo)
+  city?: string; // page location city (drives profile + ad targeting)
 }
 
 export interface FbConnection {

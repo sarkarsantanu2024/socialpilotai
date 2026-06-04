@@ -37,11 +37,20 @@ export function AdsClient({ initial }: { initial: AdRecommendation[] }) {
         </p>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        {initial.map((rec) => (
-          <RecommendationCard key={rec.id} rec={rec} />
-        ))}
-      </div>
+      {initial.length === 0 ? (
+        <div className="card grid min-h-[200px] place-items-center p-8 text-center text-sm text-ink-500">
+          <div>
+            <p className="font-medium text-ink-700">No recommendation yet</p>
+            <p className="mt-1 max-w-sm">Publish a few posts to your Page — once they gather engagement, AI will recommend your best post to promote here.</p>
+          </div>
+        </div>
+      ) : (
+        <div className="grid gap-5 lg:grid-cols-2">
+          {initial.map((rec) => (
+            <RecommendationCard key={rec.id} rec={rec} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

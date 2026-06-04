@@ -2,17 +2,17 @@ import { Users, IndianRupee, Target, TrendingDown } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/ui/Stat";
 import { LeadsClient } from "./LeadsClient";
-import { getClientSamples } from "@/lib/clientData";
+import { getClientData } from "@/lib/clientData";
 import { getConnection, activePage } from "@/lib/fb/session";
 import { getCapturedLeads } from "@/lib/fb/store";
 import { inr } from "@/lib/utils";
 
-export default function LeadsPage() {
-  const { leads: demoLeads, campaigns } = getClientSamples();
-  // Real leads captured via the Lead Ads webhook (if a Page is connected) first.
+export default async function LeadsPage() {
+  const { leads: liveLeads, campaigns } = await getClientData();
+  // Real leads captured via the Lead Ads webhook (live = no dummy); demo otherwise.
   const page = activePage(getConnection());
   const captured = page ? getCapturedLeads(page.id) : [];
-  const leads = [...captured, ...demoLeads];
+  const leads = [...captured, ...liveLeads];
   // ROI: combine Ads Insights (spend) with captured leads.
   const completed = campaigns.find((c) => c.status === "COMPLETED");
   const spend = completed?.spend ?? 0;

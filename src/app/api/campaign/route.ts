@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createPausedCampaign, type AdsCtx } from "@/lib/meta";
 import { adAccount } from "@/lib/demo/data";
-import { getClientSamples } from "@/lib/clientData";
+import { getClientData } from "@/lib/clientData";
 import { getConnection, activePage } from "@/lib/fb/session";
 
 // Creating a campaign from an approved recommendation.
@@ -9,7 +9,7 @@ import { getConnection, activePage } from "@/lib/fb/session";
 // account is connected (premium); demo mock otherwise.
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
-  const rec = getClientSamples().recommendations.find((r) => r.id === body.recId);
+  const rec = (await getClientData()).recommendations.find((r) => r.id === body.recId);
   if (!rec) {
     return NextResponse.json({ error: "recommendation not found" }, { status: 404 });
   }

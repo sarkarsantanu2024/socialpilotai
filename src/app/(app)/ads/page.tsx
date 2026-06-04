@@ -1,9 +1,9 @@
 import { PageHeader } from "@/components/ui/PageHeader";
 import { AdsClient } from "./AdsClient";
-import { getClientSamples } from "@/lib/clientData";
+import { getClientData } from "@/lib/clientData";
 
-export default function AdsPage() {
-  const { recommendations } = getClientSamples();
+export default async function AdsPage() {
+  const { recommendations } = await getClientData();
   return (
     <div className="space-y-6">
       <PageHeader

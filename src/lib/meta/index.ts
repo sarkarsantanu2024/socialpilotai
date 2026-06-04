@@ -48,26 +48,38 @@ export async function publishPost(opts: {
     params.set("scheduled_publish_time", String(Math.floor(new Date(opts.scheduledAt!).getTime() / 1000)));
   }
 
-  let endpoint: string;
+  let fbPostId: string;
   if (opts.assetUrl) {
-    endpoint = `${base}/${opts.pageId}/photos`;
-    params.set("url", opts.assetUrl);
-    params.set("caption", opts.caption);
+    // Two-step so the image lands as a real TIMELINE feed story (not just a bare
+    // Photos-tab entry, which is what a direct POST /photos produces on the New
+    // Pages Experience): (1) upload the photo UNPUBLISHED, (2) attach it to a
+    // /feed post via attached_media. This makes app-published images show up in
+    // the page feed exactly like a native post.
+    const upParams = new URLSearchParams({
+      access_token: opts.pageToken,
+      url: opts.assetUrl,
+      published: "false",
+    });
+    const upRes = await fetch(`${base}/${opts.pageId}/photos`, { method: "POST", body: upParams });
+    const upData = await upRes.json();
+    if (!upRes.ok || upData.error) {
+      throw new Error(upData.error?.message ?? "Facebook photo upload failed");
+    }
+    params.set("message", opts.caption);
+    params.set("attached_media[0]", JSON.stringify({ media_fbid: upData.id }));
   } else {
-    endpoint = `${base}/${opts.pageId}/feed`;
     params.set("message", opts.caption);
   }
 
-  const res = await fetch(endpoint, { method: "POST", body: params });
+  const res = await fetch(`${base}/${opts.pageId}/feed`, { method: "POST", body: params });
   const data = await res.json();
   if (!res.ok || data.error) {
     throw new Error(data.error?.message ?? "Facebook publish failed");
   }
-  // photos returns {id, post_id}; feed returns {id}
-  const fbPostId: string = data.post_id ?? data.id;
+  fbPostId = data.post_id ?? data.id;
   return {
     fbPostId,
-    permalink: `https://facebook.com/${fbPostId}`,
+    permalink: `https://www.facebook.com/${fbPostId}`,
     scheduled,
   };
 }
@@ -130,32 +142,45 @@ export async function fetchPageData(
   };
 
   const feed = await getEdge("feed", `id,message,story,created_time,full_picture,permalink_url,attachments{media_type},${engage}`);
-  const reels = await getEdge("video_reels", "id,description,created_time,permalink_url,picture,thumbnails{uri}");
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let photos: any[] = [];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let videos: any[] = [];
-  if (feed.length === 0) {
-    [photos, videos] = await Promise.all([
-      getEdge("photos", `id,name,created_time,images,link,${engage}`, "&type=uploaded"),
-      getEdge("videos", "id,description,created_time,picture,permalink_url"),
-    ]);
-  }
+  // Always pull reels, photos AND videos too. The New Pages Experience routinely
+  // OMITS image-only posts — and freshly API-published photos — from /feed, so
+  // relying on feed alone hides them (the bug behind "only videos show" and
+  // "my new posts aren't here"). We merge every edge and de-dupe below.
+  const [reels, photos, videos] = await Promise.all([
+    getEdge("video_reels", "id,description,created_time,permalink_url,picture,thumbnails{uri}"),
+    getEdge("photos", `id,name,created_time,images,link,${engage}`, "&type=uploaded"),
+    getEdge("videos", "id,description,created_time,picture,permalink_url"),
+  ]);
 
-  // Normalise every edge into one shape with a forced __kind, dedupe, sort newest first.
+  // Normalise every edge into one shape with a forced __kind, then dedupe by id
+  // AND by a content signature (so the SAME post arriving from both /feed and
+  // /photos isn't listed twice), and sort newest first.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rows: any[] = [];
-  const seen = new Set<string>();
+  const seenId = new Set<string>();
+  const seenSig = new Set<string>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const add = (r: any) => { if (r?.id && !seen.has(r.id)) { seen.add(r.id); rows.push(r); } };
+  const sig = (r: any) =>
+    `${String(r.message ?? r.story ?? "").trim().slice(0, 60).toLowerCase()}|${String(r.created_time ?? "").slice(0, 16)}`;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const add = (r: any) => {
+    if (!r?.id || seenId.has(r.id)) return;
+    const s = sig(r);
+    if (s !== "|" && seenSig.has(s)) return; // duplicate content (skip blanks-only sig)
+    seenId.add(r.id);
+    seenSig.add(s);
+    rows.push(r);
+  };
 
+  // Priority: feed first (richest — engagement counts + real permalink), then
+  // reels, photos, videos, so a duplicate keeps the best-quality version.
   for (const p of feed) {
     const mt = p.attachments?.data?.[0]?.media_type as string | undefined;
     add({ ...p, __kind: mt === "video" ? "video" : mt === "photo" || p.full_picture ? "image" : "text" });
   }
+  for (const p of reels) add({ id: p.id, message: p.description, created_time: p.created_time, full_picture: p.picture ?? p.thumbnails?.data?.[0]?.uri ?? "", permalink_url: p.permalink_url, __kind: "reel" });
   for (const p of photos) add({ id: p.id, message: p.name, created_time: p.created_time, full_picture: p.images?.[0]?.source ?? "", permalink_url: p.link, shares: p.shares, reactions: p.reactions, comments: p.comments, __kind: "image" });
   for (const p of videos) add({ id: p.id, message: p.description, created_time: p.created_time, full_picture: p.picture ?? "", permalink_url: p.permalink_url, __kind: "video" });
-  for (const p of reels) add({ id: p.id, message: p.description, created_time: p.created_time, full_picture: p.picture ?? p.thumbnails?.data?.[0]?.uri ?? "", permalink_url: p.permalink_url, __kind: "reel" });
 
   rows.sort((a, b) => String(b.created_time ?? "").localeCompare(String(a.created_time ?? "")));
 

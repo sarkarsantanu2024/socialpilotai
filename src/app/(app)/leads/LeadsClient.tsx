@@ -52,6 +52,15 @@ export function LeadsClient({ initial }: { initial: Lead[] }) {
         </div>
       </div>
 
+      {leads.length === 0 ? (
+        <div className="card grid min-h-[160px] place-items-center p-8 text-center text-sm text-ink-500">
+          <div>
+            <p className="font-medium text-ink-700">No leads yet</p>
+            <p className="mt-1 max-w-md">Leads from your Facebook Lead Ads land here in real time. Use &quot;Simulate test lead&quot; to preview the flow.</p>
+          </div>
+        </div>
+      ) : (
+        <>
       {/* Mobile: cards */}
       <div className="grid gap-3 sm:hidden">
         {leads.map((l) => (
@@ -105,6 +114,8 @@ export function LeadsClient({ initial }: { initial: Lead[] }) {
           </table>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }

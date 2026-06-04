@@ -15,6 +15,7 @@ import {
   Video,
   Upload,
   Shuffle,
+  Send,
 } from "lucide-react";
 import { cn, fmtDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/Badge";
@@ -128,6 +129,27 @@ function FestivalCard({ f }: { f: Festival }) {
   const shown = userImg ?? img;
   const showImg = shown && !imgFailed;
 
+  // Publish this festival post straight to the connected Page (real if connected).
+  const [publishing, setPublishing] = useState(false);
+  const [published, setPublished] = useState<{ live: boolean; permalink: string; pageName: string | null; error?: string } | null>(null);
+  async function publish() {
+    setPublishing(true);
+    setPublished(null);
+    const httpImg = shown && shown.startsWith("http") ? shown : undefined; // data-URL uploads post as text
+    try {
+      const res = await fetch("/api/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caption: `${caption}\n\n${tags}`, assetUrl: httpImg }),
+      });
+      const d = await res.json();
+      setPublished({ live: !!d.live, permalink: d.permalink ?? "", pageName: d.pageName ?? null, error: d.ok === false ? d.error : undefined });
+    } catch {
+      setPublished({ live: false, permalink: "", pageName: null, error: "Network error" });
+    }
+    setPublishing(false);
+  }
+
   return (
     <div className="card overflow-hidden">
       {/* Visual: stock image (or brand gradient) with brand + festival overlay */}
@@ -239,13 +261,26 @@ function FestivalCard({ f }: { f: Festival }) {
           </>
         )}
 
-        <button
-          onClick={() => setAdded(true)}
-          disabled={added}
-          className={cn("mt-3 w-full text-xs", added ? "btn-soft" : "btn-primary")}
-        >
-          {added ? (<><Check className="h-3.5 w-3.5" /> Added to calendar</>) : (<><Sparkles className="h-3.5 w-3.5" /> Add to calendar</>)}
-        </button>
+        <div className="mt-3 flex gap-2">
+          <button
+            onClick={() => setAdded(true)}
+            disabled={added}
+            className={cn("flex-1 text-xs", added ? "btn-soft" : "btn-ghost")}
+          >
+            {added ? (<><Check className="h-3.5 w-3.5" /> Added</>) : (<><Sparkles className="h-3.5 w-3.5" /> Calendar</>)}
+          </button>
+          <button onClick={publish} disabled={publishing} className="btn-primary flex-1 text-xs">
+            {publishing ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> …</> : <><Send className="h-3.5 w-3.5" /> Publish</>}
+          </button>
+        </div>
+        {published?.error ? (
+          <p className="mt-2 text-[11px] font-medium text-rose-600">⚠ {published.error}</p>
+        ) : published && (
+          <p className="mt-2 text-[11px] font-medium text-brand-700">
+            {published.live ? <>✅ Posted to {published.pageName}. </> : <>📭 Posted (demo). </>}
+            {published.permalink && <a href={published.permalink} target="_blank" rel="noreferrer" className="underline">View</a>}
+          </p>
+        )}
       </div>
     </div>
   );
