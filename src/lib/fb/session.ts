@@ -10,6 +10,8 @@ export interface FbPage {
   id: string;
   name: string;
   token: string;
+  category?: string;
+  picture?: string; // page profile photo URL (used as the brand logo)
 }
 
 export interface FbConnection {

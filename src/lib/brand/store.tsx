@@ -8,6 +8,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { demoTenants } from "@/lib/demo/data";
+import { guessBusinessType } from "@/lib/demo/tenantData";
 import type { BusinessProfile, BrandKit } from "@/lib/types";
 
 export type Brand = { profile: BusinessProfile; kit: BrandKit };
@@ -82,38 +83,63 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<Persisted>(loadPersisted);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) {
-        writeTenantCookie(DEFAULT_ID);
-        return;
-      }
-      const saved = JSON.parse(raw);
-      if (saved.tenants) {
-        // Merge defaults so newly-added tenants always appear.
-        const tenants: TenantMap = { ...DEFAULT_TENANTS };
-        for (const id of Object.keys(saved.tenants)) {
-          tenants[id] = {
-            profile: { ...DEFAULT_TENANTS[id]?.profile, ...saved.tenants[id]?.profile },
-            kit: { ...DEFAULT_TENANTS[id]?.kit, ...saved.tenants[id]?.kit },
-          } as Brand;
+    (async () => {
+      // 1) Base identity from localStorage (or defaults).
+      let base: Persisted = loadPersisted();
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        const saved = raw ? JSON.parse(raw) : null;
+        if (saved?.tenants) {
+          const tenants: TenantMap = { ...DEFAULT_TENANTS };
+          for (const id of Object.keys(saved.tenants)) {
+            tenants[id] = {
+              profile: { ...DEFAULT_TENANTS[id]?.profile, ...saved.tenants[id]?.profile },
+              kit: { ...DEFAULT_TENANTS[id]?.kit, ...saved.tenants[id]?.kit },
+            } as Brand;
+          }
+          base = { tenantId: tenants[saved.tenantId] ? saved.tenantId : DEFAULT_ID, tenants };
+        } else if (saved?.profile) {
+          const tenants = structuredCloneSafe(DEFAULT_TENANTS);
+          tenants[DEFAULT_ID] = {
+            profile: { ...tenants[DEFAULT_ID].profile, ...saved.profile },
+            kit: { ...tenants[DEFAULT_ID].kit, ...saved.kit },
+          };
+          base = { tenantId: DEFAULT_ID, tenants };
         }
-        const activeId = saved.tenants[saved.tenantId] ? saved.tenantId : DEFAULT_ID;
-        setState({ tenantId: activeId, tenants });
-        writeTenantCookie(activeId);
-      } else if (saved.profile) {
-        // Migrate the old single-brand shape into the default tenant.
-        const tenants = structuredCloneSafe(DEFAULT_TENANTS);
-        tenants[DEFAULT_ID] = {
-          profile: { ...tenants[DEFAULT_ID].profile, ...saved.profile },
-          kit: { ...tenants[DEFAULT_ID].kit, ...saved.kit },
-        };
-        setState({ tenantId: DEFAULT_ID, tenants });
-        writeTenantCookie(DEFAULT_ID);
+      } catch {
+        /* ignore corrupt storage */
       }
-    } catch {
-      /* ignore corrupt storage */
-    }
+
+      // 2) If a real Facebook Page is connected, overlay its identity (name, logo,
+      //    business type) so the whole app reflects the live client, not demo data.
+      try {
+        const s = await fetch("/api/fb/status", { cache: "no-store" }).then((r) => r.json());
+        if (s?.connected && s.activePage) {
+          const id = base.tenantId;
+          const t = guessBusinessType(`${s.activePage.name} ${s.activePage.category ?? ""}`);
+          base = {
+            ...base,
+            tenants: {
+              ...base.tenants,
+              [id]: {
+                profile: { ...base.tenants[id].profile, name: s.activePage.name, ...(t ? { type: t } : {}) },
+                kit: { ...base.tenants[id].kit, logo: s.activePage.picture ?? base.tenants[id].kit.logo },
+              },
+            },
+          };
+        }
+      } catch {
+        /* not connected — keep base */
+      }
+
+      setState(base);
+      writeTenantCookie(base.tenantId);
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(base));
+      } catch {
+        /* ignore */
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

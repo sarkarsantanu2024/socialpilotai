@@ -2,13 +2,13 @@ import { Users, IndianRupee, Target, TrendingDown } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/ui/Stat";
 import { LeadsClient } from "./LeadsClient";
-import { activeTenantData } from "@/lib/tenant";
+import { getClientSamples } from "@/lib/clientData";
 import { getConnection, activePage } from "@/lib/fb/session";
 import { getCapturedLeads } from "@/lib/fb/store";
 import { inr } from "@/lib/utils";
 
 export default function LeadsPage() {
-  const { leads: demoLeads, campaigns } = activeTenantData();
+  const { leads: demoLeads, campaigns } = getClientSamples();
   // Real leads captured via the Lead Ads webhook (if a Page is connected) first.
   const page = activePage(getConnection());
   const captured = page ? getCapturedLeads(page.id) : [];

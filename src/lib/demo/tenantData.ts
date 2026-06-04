@@ -299,3 +299,25 @@ export function getTenantData(tenantId: string): TenantData {
   CACHE.set(tenant.id, data);
   return data;
 }
+
+// Map a Page name/category to a business type, so the ads/leads SAMPLES match
+// the connected client (e.g. an abacus Page gets abacus-themed sample ads/leads).
+export function guessBusinessType(text: string): BusinessType | null {
+  const s = text.toLowerCase();
+  if (/abacus|mental ?math/.test(s)) return "abacus";
+  if (/gym|fitness|workout|crossfit/.test(s)) return "gym";
+  if (/playschool|preschool|daycare|kindergarten|nursery/.test(s)) return "playschool";
+  if (/salon|beauty|spa|hair/.test(s)) return "salon";
+  if (/restaurant|cafe|food|dining|kitchen|bakery/.test(s)) return "restaurant";
+  if (/coaching|tuition|academy|school|institute|education|classes/.test(s)) return "coaching";
+  return null;
+}
+
+// Build a themed sample dataset for a business type, named after the live Page.
+export function buildForType(type: BusinessType, name: string): TenantData {
+  return build({
+    id: `live_${type}`,
+    profile: { id: `biz_${type}`, name, type, city: "your area", language: "English", tone: "Friendly, professional", audience: "Local customers" },
+    kit: { logoText: name, primary: "#244fdb", secondary: "#0ea5e9", accent: "#f59e0b", font: "Poppins" },
+  });
+}
