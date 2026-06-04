@@ -5,11 +5,11 @@ import { StatusBadge, Badge } from "@/components/ui/Badge";
 import { StatCard } from "@/components/ui/Stat";
 import { GoLiveButton } from "@/components/ads/GoLiveButton";
 import { adAccount } from "@/lib/demo/data";
-import { getClientSamples } from "@/lib/clientData";
+import { getClientData } from "@/lib/clientData";
 import { inr, compact, fmtDate } from "@/lib/utils";
 
-export default function CampaignsPage() {
-  const { campaigns } = getClientSamples();
+export default async function CampaignsPage() {
+  const { campaigns } = await getClientData();
   const totalSpend = campaigns.reduce((s, c) => s + c.spend, 0);
   const totalResults = campaigns.reduce((s, c) => s + c.results, 0);
   const totalReach = campaigns.reduce((s, c) => s + c.reach, 0);
@@ -43,6 +43,15 @@ export default function CampaignsPage() {
         <StatCard label="Total reach" value={compact(totalReach)} icon={<Megaphone className="h-5 w-5" />} />
         <StatCard label="Total results" value={compact(totalResults)} icon={<Rocket className="h-5 w-5" />} />
       </div>
+
+      {campaigns.length === 0 && (
+        <div className="card grid min-h-[160px] place-items-center p-8 text-center text-sm text-ink-500">
+          <div>
+            <p className="font-medium text-ink-700">No campaigns yet</p>
+            <p className="mt-1 max-w-md">Approve a recommendation in <b>Ad Recommendations</b> to create your first campaign — it&apos;s created PAUSED and never spends until you press &quot;Go live&quot;.</p>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-4">
         {campaigns.map((c) => (

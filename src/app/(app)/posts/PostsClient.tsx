@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Send, Clock, FileEdit, CheckCircle2, RefreshCw, ExternalLink } from "lucide-react";
+import { Send, Clock, FileEdit, CheckCircle2, RefreshCw, ExternalLink, Trash2 } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { fmtDateTime } from "@/lib/utils";
@@ -45,6 +45,30 @@ export function PostsClient({ initial }: { initial: Post[] }) {
       )
     );
     setBusy(null);
+  }
+
+  async function removePost(post: Post) {
+    const live = !!post.fbPostId;
+    const ok = window.confirm(
+      live
+        ? `Permanently delete this post from your Facebook Page?\n\n"${post.title}"\n\nThis cannot be undone.`
+        : `Remove this post from the list?`
+    );
+    if (!ok) return;
+
+    setBusy(post.id);
+    if (live) {
+      const res = await fetch(`/api/publish?id=${encodeURIComponent(post.fbPostId!)}`, { method: "DELETE" });
+      const data = await res.json();
+      setBusy(null);
+      if (!data.ok) {
+        alert(`Couldn't delete on Facebook: ${data.error}`);
+        return;
+      }
+    } else {
+      setBusy(null);
+    }
+    setItems((prev) => prev.filter((p) => p.id !== post.id));
   }
 
   const counts = {
@@ -125,6 +149,14 @@ export function PostsClient({ initial }: { initial: Post[] }) {
                     )}
                   </button>
                 )}
+                <button
+                  onClick={() => removePost(p)}
+                  disabled={busy === p.id}
+                  title="Delete post"
+                  className="btn-ghost px-2.5 text-xs text-rose-600 hover:bg-rose-50"
+                >
+                  {busy === p.id ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                </button>
               </div>
             </div>
           </div>

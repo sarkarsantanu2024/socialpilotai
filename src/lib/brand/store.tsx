@@ -11,6 +11,17 @@ import { demoTenants } from "@/lib/demo/data";
 import { guessBusinessType } from "@/lib/demo/tenantData";
 import type { BusinessProfile, BrandKit } from "@/lib/types";
 
+// Type-appropriate defaults applied when a Page first connects (so an abacus
+// centre doesn't inherit gym tone/audience). Facebook doesn't expose tone/audience.
+const TYPE_DEFAULTS: Record<string, { tone: string; audience: string }> = {
+  abacus: { tone: "Encouraging, parent-friendly, proud", audience: "Parents of children aged 4–14" },
+  coaching: { tone: "Warm, encouraging, parent-friendly", audience: "Parents of school & college students" },
+  gym: { tone: "Motivating, energetic, no-excuses", audience: "Fitness-focused adults 22–45" },
+  playschool: { tone: "Warm, playful, reassuring", audience: "Parents of toddlers aged 2–5" },
+  salon: { tone: "Friendly, stylish, pampering", audience: "Beauty-conscious adults" },
+  restaurant: { tone: "Warm, inviting, foodie", audience: "Local food lovers & families" },
+};
+
 export type Brand = { profile: BusinessProfile; kit: BrandKit };
 type TenantMap = Record<string, Brand>;
 
@@ -32,7 +43,7 @@ const DEFAULT_TENANTS: TenantMap = Object.fromEntries(
 );
 const DEFAULT_ID = demoTenants[0].id;
 
-type Persisted = { tenantId: string; tenants: TenantMap };
+type Persisted = { tenantId: string; tenants: TenantMap; seededFor?: string };
 
 function loadPersisted(): Persisted {
   return { tenantId: DEFAULT_ID, tenants: structuredCloneSafe(DEFAULT_TENANTS) };
@@ -116,14 +127,27 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
         const s = await fetch("/api/fb/status", { cache: "no-store" }).then((r) => r.json());
         if (s?.connected && s.activePage) {
           const id = base.tenantId;
-          const t = guessBusinessType(`${s.activePage.name} ${s.activePage.category ?? ""}`);
+          const ap = s.activePage;
+          // Full clean seed once per Page (tracked by id); after that respect edits.
+          const fullSeed = base.seededFor !== ap.id;
+          const t = guessBusinessType(`${ap.name} ${ap.category ?? ""}`);
+          const d = t ? TYPE_DEFAULTS[t] : null;
           base = {
             ...base,
+            seededFor: ap.id,
             tenants: {
               ...base.tenants,
               [id]: {
-                profile: { ...base.tenants[id].profile, name: s.activePage.name, ...(t ? { type: t } : {}) },
-                kit: { ...base.tenants[id].kit, logo: s.activePage.picture ?? base.tenants[id].kit.logo },
+                profile: fullSeed
+                  ? {
+                      ...base.tenants[id].profile,
+                      name: ap.name,
+                      ...(t ? { type: t } : {}),
+                      city: ap.city ?? "",
+                      ...(d ? { tone: d.tone, audience: d.audience } : {}),
+                    }
+                  : base.tenants[id].profile,
+                kit: { ...base.tenants[id].kit, logo: ap.picture ?? base.tenants[id].kit.logo },
               },
             },
           };

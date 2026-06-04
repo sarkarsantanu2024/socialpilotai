@@ -107,7 +107,7 @@ export function StudioClient() {
   const [images, setImages] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [published, setPublished] = useState<{ live: boolean; permalink: string; pageName: string | null; scheduled: boolean } | null>(null);
+  const [published, setPublished] = useState<{ live: boolean; permalink: string; pageName: string | null; scheduled: boolean; error?: string } | null>(null);
   const [scheduleAt, setScheduleAt] = useState("");
   const [showSchedule, setShowSchedule] = useState(false);
   // Bumped each generate so swiped slides remount with fresh image load state.
@@ -185,10 +185,16 @@ export function StudioClient() {
         body: JSON.stringify({ caption, assetUrl: httpImage, scheduledAt: when || undefined }),
       });
       const data = await res.json();
-      setPublished({ live: !!data.live, permalink: data.permalink ?? "", pageName: data.pageName ?? null, scheduled: !!data.scheduled });
+      setPublished({
+        live: !!data.live,
+        permalink: data.permalink ?? "",
+        pageName: data.pageName ?? null,
+        scheduled: !!data.scheduled,
+        error: data.ok === false ? data.error : undefined,
+      });
       setShowSchedule(false);
     } catch {
-      setPublished({ live: false, permalink: "", pageName: null, scheduled: false });
+      setPublished({ live: false, permalink: "", pageName: null, scheduled: false, error: "Network error" });
     }
     setPublishing(false);
   }
@@ -447,7 +453,11 @@ export function StudioClient() {
                 </div>
               )}
 
-              {published && (
+              {published?.error ? (
+                <p className="mt-2.5 rounded-lg bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">
+                  ⚠ Couldn&apos;t publish: {published.error}
+                </p>
+              ) : published && (
                 <p className="mt-2.5 text-xs font-medium text-brand-800">
                   {published.scheduled ? (
                     published.live ? <>🗓️ Scheduled live on <b>{published.pageName}</b>. </> : <>🗓️ Scheduled (demo). </>

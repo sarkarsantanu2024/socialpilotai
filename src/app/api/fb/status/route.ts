@@ -15,6 +15,6 @@ export async function GET() {
     adsConnected: !!conn?.adAccountId,
     adAccountId: conn?.adAccountId ?? null,
     // Active page identity — drives the app's brand (name, logo, category).
-    activePage: active ? { id: active.id, name: active.name, category: active.category ?? null, picture: active.picture ?? null } : null,
+    activePage: active ? { id: active.id, name: active.name, category: active.category ?? null, picture: active.picture ?? null, city: active.city ?? null } : null,
   });
 }
