@@ -1,0 +1,21 @@
+/node_modules
+/.next
+/out
+/build
+.DS_Store
+*.pem
+.env
+.env*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+next-env.d.ts
+/prisma/dev.db
+
+# build artifacts
+*.tsbuildinfo
+.vercel
+
+# generated demo assets (regenerate with `npm run demo:pdf`)
+/demo-assets
+/DEMO_GUIDE.pdf

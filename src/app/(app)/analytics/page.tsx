@@ -1,0 +1,135 @@
+import { Eye, MousePointerClick, Share2, MessageCircle, Sparkles, PlayCircle } from "lucide-react";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { StatCard } from "@/components/ui/Stat";
+import { Badge } from "@/components/ui/Badge";
+import { TrendChart } from "@/components/charts/TrendChart";
+import { BarMini } from "@/components/charts/BarMini";
+import { getClientData } from "@/lib/clientData";
+import { generateReport } from "@/lib/ai";
+import { compact } from "@/lib/utils";
+
+const trend = [
+  { label: "May 5", reach: 5200, engagement: 380 },
+  { label: "May 12", reach: 7600, engagement: 610 },
+  { label: "May 19", reach: 9900, engagement: 980 },
+  { label: "May 26", reach: 13600, engagement: 1440 },
+  { label: "Jun 2", reach: 17400, engagement: 2010 },
+];
+
+const bestDays = [
+  { label: "Mon", value: 22 },
+  { label: "Tue", value: 31 },
+  { label: "Wed", value: 28 },
+  { label: "Thu", value: 44 },
+  { label: "Fri", value: 38 },
+  { label: "Sat", value: 61 },
+  { label: "Sun", value: 47 },
+];
+
+export default async function AnalyticsPage() {
+  const { posts, analytics } = await getClientData();
+  const totals = analytics.reduce(
+    (acc, a) => ({
+      reach: acc.reach + a.reach,
+      impressions: acc.impressions + a.impressions,
+      clicks: acc.clicks + a.clicks,
+      shares: acc.shares + a.shares,
+      comments: acc.comments + a.comments,
+      videoViews: acc.videoViews + a.videoViews,
+    }),
+    { reach: 0, impressions: 0, clicks: 0, shares: 0, comments: 0, videoViews: 0 }
+  );
+
+  const ranked = [...analytics].sort((a, b) => b.engagementRate - a.engagementRate);
+  const top = ranked[0];
+  const topPost = top ? posts.find((p) => p.id === top.postId) : posts[0];
+
+  const report = await generateReport({
+    topPost: topPost?.title ?? "your recent posts",
+    reach: totals.reach,
+    engagementRate: top?.engagementRate ?? 0,
+    growth: 18,
+  });
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        phase="Phase 4 · Analytics"
+        title="Analytics"
+        subtitle="Reach, engagement and best-time insights pulled from the Page & post Insights API, with an AI-written plain-language summary."
+      />
+
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <StatCard label="Total reach" value={compact(totals.reach)} delta={{ value: "18%", up: true }} icon={<Eye className="h-5 w-5" />} />
+        <StatCard label="Video views" value={compact(totals.videoViews)} delta={{ value: "32%", up: true }} icon={<PlayCircle className="h-5 w-5" />} />
+        <StatCard label="Link clicks" value={compact(totals.clicks)} delta={{ value: "9%", up: true }} icon={<MousePointerClick className="h-5 w-5" />} />
+        <StatCard label="Shares" value={compact(totals.shares)} delta={{ value: "21%", up: true }} icon={<Share2 className="h-5 w-5" />} />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="card p-5 lg:col-span-2">
+          <h2 className="mb-2 font-semibold">Reach & engagement (30 days)</h2>
+          <TrendChart data={trend} />
+        </div>
+        <div className="card p-5">
+          <h2 className="mb-2 font-semibold">Best day to post</h2>
+          <BarMini data={bestDays} highlight={5} />
+          <p className="mt-2 text-sm text-ink-500">Saturdays drive the most engagement.</p>
+        </div>
+      </div>
+
+      {/* AI report */}
+      <div className="card p-5">
+        <div className="mb-3 flex items-center gap-2">
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-violet-50 text-violet-600">
+            <Sparkles className="h-4 w-4" />
+          </span>
+          <h2 className="font-semibold">Plain-language report</h2>
+          <Badge tone="violet">AI generated</Badge>
+        </div>
+        <p className="text-sm leading-relaxed text-ink-700">{report}</p>
+      </div>
+
+      {/* Per-post table */}
+      <div className="card overflow-hidden">
+        <div className="border-b border-ink-100 p-4">
+          <h2 className="font-semibold">Top posts</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm">
+            <thead className="bg-ink-50 text-left text-xs uppercase tracking-wide text-ink-500">
+              <tr>
+                <th className="p-3 font-semibold">Post</th>
+                <th className="p-3 font-semibold">Reach</th>
+                <th className="p-3 font-semibold"><MessageCircle className="inline h-3.5 w-3.5" /> Comments</th>
+                <th className="p-3 font-semibold"><Share2 className="inline h-3.5 w-3.5" /> Shares</th>
+                <th className="p-3 font-semibold">Engagement</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ranked.map((a) => {
+                const p = posts.find((x) => x.id === a.postId)!;
+                return (
+                  <tr key={a.postId} className="border-t border-ink-100">
+                    <td className="p-3">
+                      <div className="flex items-center gap-2">
+                        <Badge tone="blue">{p.type}</Badge>
+                        <span className="line-clamp-1 max-w-[220px] font-medium">{p.title}</span>
+                      </div>
+                    </td>
+                    <td className="p-3 text-ink-600">{compact(a.reach)}</td>
+                    <td className="p-3 text-ink-600">{a.comments}</td>
+                    <td className="p-3 text-ink-600">{a.shares}</td>
+                    <td className="p-3">
+                      <span className="font-semibold text-emerald-600">{a.engagementRate}%</span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
