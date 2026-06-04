@@ -1,9 +1,9 @@
 import { PageHeader } from "@/components/ui/PageHeader";
 import { AdsClient } from "./AdsClient";
-import { activeTenantData } from "@/lib/tenant";
+import { getClientSamples } from "@/lib/clientData";
 
 export default function AdsPage() {
-  const { recommendations } = activeTenantData();
+  const { recommendations } = getClientSamples();
   return (
     <div className="space-y-6">
       <PageHeader

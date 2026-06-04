@@ -3,9 +3,8 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Eye, EyeOff, Loader2, Sparkles, Building2, Facebook } from "lucide-react";
+import { Eye, EyeOff, Loader2, Sparkles, Facebook } from "lucide-react";
 import { DEMO_CREDENTIALS, checkDemoLogin, setSession } from "@/lib/auth";
-import { setActiveTenantId, tenantList } from "@/lib/brand/store";
 
 const FB_MESSAGES: Record<string, string> = {
   not_configured: "Real Facebook login isn't set up yet — add your Meta app keys (FB_APP_ID / FB_APP_SECRET) in .env.local. See FACEBOOK_SETUP.md.",
@@ -44,14 +43,6 @@ function LoginForm() {
     router.push(next);
   }
 
-  // Simulates "log in with a client's Facebook account" — loads that tenant's data.
-  function loginAsClient(id: string) {
-    setLoading(true);
-    setActiveTenantId(id);
-    setSession();
-    router.push("/dashboard");
-  }
-
   return (
     <>
       <h1 className="text-2xl font-bold tracking-tight">Welcome back</h1>
@@ -85,30 +76,6 @@ function LoginForm() {
         <button type="button" onClick={fillDemo} className="btn-soft mt-2.5 w-full text-xs">
           Fill demo credentials
         </button>
-      </div>
-
-      {/* Demo: jump straight in as a sample client (simulates FB login) */}
-      <div className="mt-4">
-        <p className="mb-2 text-xs font-medium text-ink-500">Or continue as a demo client:</p>
-        <div className="grid gap-2">
-          {tenantList.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => loginAsClient(t.id)}
-              disabled={loading}
-              className="flex items-center gap-2.5 rounded-xl border border-ink-200 bg-white p-2.5 text-left transition hover:border-brand-300 hover:bg-brand-50"
-            >
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-100 text-brand-700">
-                <Building2 className="h-4 w-4" />
-              </span>
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-medium">{t.name}</span>
-                <span className="block text-[11px] capitalize text-ink-400">{t.type}</span>
-              </span>
-            </button>
-          ))}
-        </div>
       </div>
 
       <form onSubmit={submit} className="mt-5 space-y-4">

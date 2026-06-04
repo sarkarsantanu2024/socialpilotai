@@ -5,11 +5,11 @@ import { StatusBadge, Badge } from "@/components/ui/Badge";
 import { StatCard } from "@/components/ui/Stat";
 import { GoLiveButton } from "@/components/ads/GoLiveButton";
 import { adAccount } from "@/lib/demo/data";
-import { activeTenantData } from "@/lib/tenant";
+import { getClientSamples } from "@/lib/clientData";
 import { inr, compact, fmtDate } from "@/lib/utils";
 
 export default function CampaignsPage() {
-  const { campaigns } = activeTenantData();
+  const { campaigns } = getClientSamples();
   const totalSpend = campaigns.reduce((s, c) => s + c.spend, 0);
   const totalResults = campaigns.reduce((s, c) => s + c.results, 0);
   const totalReach = campaigns.reduce((s, c) => s + c.reach, 0);

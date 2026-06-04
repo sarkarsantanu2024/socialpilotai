@@ -12,7 +12,6 @@ import {
   ChevronDown,
   Settings,
   LogOut,
-  Check,
   CheckCheck,
   Sparkles,
   CalendarClock,
@@ -37,7 +36,7 @@ const NOTIFICATIONS: Notif[] = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { brand, tenants, tenantId, switchTenant } = useBrand();
+  const { brand } = useBrand();
   const [open, setOpen] = useState(false);
   const [menu, setMenu] = useState<"none" | "notif" | "profile">("none");
   const [notifs, setNotifs] = useState(NOTIFICATIONS);
@@ -82,9 +81,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, [menu]);
 
-  function logout() {
+  async function logout() {
+    // Server-side clear (sp_session is httpOnly after Facebook login, so JS alone
+    // can't remove it); also clear the client cookie + FB connection.
+    await fetch("/api/logout", { method: "POST" }).catch(() => {});
     clearSession();
     router.push("/login");
+    router.refresh();
   }
 
   return (
@@ -265,35 +268,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <p className="truncate text-xs text-ink-400">
                       {connectedName ? "● Connected via Facebook" : "demo@socialpilot.ai"}
                     </p>
-                  </div>
-
-                  {/* Demo: switch between sample client accounts */}
-                  <div className="border-b border-ink-100 p-1.5">
-                    <p className="px-3 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-ink-400">
-                      Demo clients
-                    </p>
-                    {tenants.map((t) => {
-                      const active = t.id === tenantId;
-                      return (
-                        <button
-                          key={t.id}
-                          onClick={() => {
-                            switchTenant(t.id);
-                            setMenu("none");
-                          }}
-                          className={cn(
-                            "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition",
-                            active ? "bg-brand-50 text-brand-700" : "text-ink-700 hover:bg-ink-50"
-                          )}
-                        >
-                          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-brand-100 text-[10px] font-bold text-brand-700">
-                            {t.name.split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
-                          </span>
-                          <span className="min-w-0 flex-1 truncate text-left">{t.name}</span>
-                          {active && <Check className="h-4 w-4 shrink-0 text-brand-600" />}
-                        </button>
-                      );
-                    })}
                   </div>
 
                   <div className="p-1.5">
