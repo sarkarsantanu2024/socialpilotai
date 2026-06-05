@@ -388,15 +388,29 @@ export const leads: Lead[] = [
   },
 ];
 
-// Indian festival calendar (2026) — fanned out to all tenants in Phase 3.
+// Indian festival & holiday calendar (2026) — fanned out to all tenants in Phase 3.
 // Each entry is a ready-to-edit post: caption, hashtags, suggested format & image.
 // {brand} is replaced with the active tenant's name when the card renders.
+// NOTE: dates for lunar/religious festivals are the widely-published 2026 dates
+// and may shift by a day regionally — always confirm before scheduling.
 export const festivals: Festival[] = [
   {
-    date: "2026-01-14", name: "Makar Sankranti", emoji: "🪁", blurb: "Kite-flying & harvest greetings.",
-    postType: "image", imageQuery: "makar sankranti kites festival india",
-    caption: "🪁 Happy Makar Sankranti from {brand}! May your year soar as high as your kites and your harvest be plentiful. Wishing you warmth, sweetness and new beginnings.",
-    hashtags: ["#MakarSankranti", "#Sankranti2026", "#FestiveWishes", "#India"],
+    date: "2026-01-01", name: "New Year's Day", emoji: "🎉", blurb: "Fresh-start wishes.",
+    postType: "image", imageQuery: "happy new year 2026 celebration fireworks",
+    caption: "🎉 Happy New Year 2026 from {brand}! Here's to new goals, new wins and a year full of growth. Thank you for being part of our journey. Let's make it count! ✨",
+    hashtags: ["#HappyNewYear", "#NewYear2026", "#NewBeginnings", "#Goals2026"],
+  },
+  {
+    date: "2026-01-14", name: "Makar Sankranti / Pongal", emoji: "🪁", blurb: "Kite-flying & harvest greetings.",
+    postType: "image", imageQuery: "makar sankranti kites pongal harvest india",
+    caption: "🪁 Happy Makar Sankranti & Pongal from {brand}! May your year soar as high as your kites and your harvest be plentiful. Warmth, sweetness and new beginnings to all. 🌾",
+    hashtags: ["#MakarSankranti", "#Pongal", "#Sankranti2026", "#HarvestFestival"],
+  },
+  {
+    date: "2026-01-23", name: "Saraswati Puja / Vasant Panchami", emoji: "📖", blurb: "Goddess of knowledge — perfect for education brands.",
+    postType: "image", imageQuery: "saraswati puja books knowledge india",
+    caption: "📖 Happy Vasant Panchami! On Saraswati Puja, {brand} bows to the goddess of knowledge, music and learning. May wisdom and creativity bless every student. 🌼",
+    hashtags: ["#SaraswatiPuja", "#VasantPanchami", "#Knowledge", "#Learning"],
   },
   {
     date: "2026-01-26", name: "Republic Day", emoji: "🇮🇳", blurb: "Patriotic salute to the nation.",
@@ -407,8 +421,8 @@ export const festivals: Festival[] = [
   {
     date: "2026-02-15", name: "Maha Shivratri", emoji: "🕉️", blurb: "Devotional, calm tone.",
     postType: "image", imageQuery: "maha shivratri temple diya devotional",
-    caption: "🕉️ On this Maha Shivratri, may Lord Shiva bless you with strength, peace and prosperity. Warm wishes from the {brand} family.",
-    hashtags: ["#MahaShivratri", "#HarHarMahadev", "#Blessings", "#Festival"],
+    caption: "🕉️ On this Maha Shivratri, may Lord Shiva bless you with strength, peace and prosperity. Warm wishes from the {brand} family. Har Har Mahadev!",
+    hashtags: ["#MahaShivratri", "#HarHarMahadev", "#Blessings", "#Shivratri2026"],
   },
   {
     date: "2026-03-04", name: "Holi", emoji: "🎨", blurb: "Colourful, playful campaign.",
@@ -417,22 +431,58 @@ export const festivals: Festival[] = [
     hashtags: ["#Holi", "#HappyHoli", "#FestivalOfColours", "#Holi2026"],
   },
   {
+    date: "2026-03-08", name: "International Women's Day", emoji: "♀️", blurb: "Celebrate women & equality.",
+    postType: "image", imageQuery: "international womens day empowerment india",
+    caption: "♀️ Happy International Women's Day! {brand} celebrates the strength, brilliance and resilience of women everywhere. Here's to equality, every single day. 💜",
+    hashtags: ["#WomensDay", "#IWD2026", "#WomenEmpowerment", "#Equality"],
+  },
+  {
     date: "2026-03-21", name: "Eid al-Fitr", emoji: "🌙", blurb: "Warm festive wishes.",
     postType: "image", imageQuery: "eid al fitr lantern celebration",
-    caption: "🌙 Eid Mubarak from all of us at {brand}! May this Eid bring peace, happiness and prosperity to you and your loved ones.",
+    caption: "🌙 Eid Mubarak from all of us at {brand}! May this Eid bring peace, happiness and prosperity to you and your loved ones. 🤲",
     hashtags: ["#EidMubarak", "#EidAlFitr", "#Eid2026", "#FestiveWishes"],
   },
   {
-    date: "2026-04-14", name: "Ambedkar Jayanti", emoji: "📘", blurb: "Education & equality message.",
-    postType: "image", imageQuery: "education books learning india",
-    caption: "📘 On Ambedkar Jayanti, {brand} honours the visionary who championed education and equality for all. \"Education is the milk of a lioness.\" Let's keep learning.",
-    hashtags: ["#AmbedkarJayanti", "#Education", "#Equality", "#JaiBhim"],
+    date: "2026-03-26", name: "Ram Navami", emoji: "🙏", blurb: "Devotional greeting.",
+    postType: "image", imageQuery: "ram navami temple india devotional",
+    caption: "🙏 Happy Ram Navami from {brand}! May Lord Rama bless you with courage, righteousness and peace. Jai Shri Ram! 🚩",
+    hashtags: ["#RamNavami", "#JaiShriRam", "#Festival", "#Blessings"],
   },
   {
-    date: "2026-06-15", name: "Father's Day", emoji: "👨‍👧", blurb: "Gratitude to dads.",
+    date: "2026-04-03", name: "Good Friday", emoji: "✝️", blurb: "Solemn, respectful tone.",
+    postType: "image", imageQuery: "good friday cross church",
+    caption: "✝️ On Good Friday, {brand} joins in reflection, gratitude and hope. Wishing peace and blessings to you and your family.",
+    hashtags: ["#GoodFriday", "#Blessings", "#Peace", "#Faith"],
+  },
+  {
+    date: "2026-04-14", name: "Ambedkar Jayanti / Baisakhi", emoji: "📘", blurb: "Education & harvest message.",
+    postType: "image", imageQuery: "education books learning baisakhi india",
+    caption: "📘 On Ambedkar Jayanti & Baisakhi, {brand} honours knowledge, equality and new beginnings. \"Education is the milk of a lioness.\" Let's keep learning. 🌾",
+    hashtags: ["#AmbedkarJayanti", "#Baisakhi", "#Education", "#JaiBhim"],
+  },
+  {
+    date: "2026-05-01", name: "May Day / Labour Day", emoji: "🛠️", blurb: "Honour hard work.",
+    postType: "image", imageQuery: "labour day workers india",
+    caption: "🛠️ Happy May Day! {brand} salutes the hard work and dedication of every worker. Your effort builds the world around us. 💪",
+    hashtags: ["#MayDay", "#LabourDay", "#HardWork", "#Workers"],
+  },
+  {
+    date: "2026-05-10", name: "Mother's Day", emoji: "👩‍👧", blurb: "Gratitude to mothers.",
+    postType: "image", imageQuery: "indian mother child happy family",
+    caption: "💐 Behind every confident child is a mother who believed first. This Mother's Day, {brand} salutes every amazing mom. Happy Mother's Day! ❤️",
+    hashtags: ["#MothersDay", "#ThankYouMom", "#FamilyFirst", "#MomLove"],
+  },
+  {
+    date: "2026-05-27", name: "Eid al-Adha (Bakrid)", emoji: "🐑", blurb: "Warm festive wishes.",
+    postType: "image", imageQuery: "eid al adha bakrid celebration",
+    caption: "🌙 Eid al-Adha Mubarak from {brand}! May this Eid bring you sacrifice rewarded, prayers answered, and joy shared with loved ones. 🤲",
+    hashtags: ["#EidAlAdha", "#Bakrid", "#EidMubarak", "#FestiveWishes"],
+  },
+  {
+    date: "2026-06-21", name: "Father's Day / Yoga Day", emoji: "👨‍👧", blurb: "Gratitude to dads + wellness.",
     postType: "image", imageQuery: "indian father child happy family",
     caption: "❤️ Behind every confident child is a parent who believed first. This Father's Day, {brand} salutes all the dads cheering from the sidelines. Happy Father's Day!",
-    hashtags: ["#FathersDay", "#ThankYouDad", "#FamilyFirst"],
+    hashtags: ["#FathersDay", "#ThankYouDad", "#FamilyFirst", "#YogaDay"],
   },
   {
     date: "2026-08-15", name: "Independence Day", emoji: "🇮🇳", blurb: "Freedom & aspiration theme.",
@@ -441,16 +491,40 @@ export const festivals: Festival[] = [
     hashtags: ["#IndependenceDay", "#15August", "#ProudIndian", "#JaiHind"],
   },
   {
-    date: "2026-08-26", name: "Raksha Bandhan", emoji: "🪢", blurb: "Sibling-bond storytelling.",
+    date: "2026-08-28", name: "Raksha Bandhan", emoji: "🪢", blurb: "Sibling-bond storytelling.",
     postType: "image", imageQuery: "raksha bandhan rakhi siblings india",
     caption: "🪢 Happy Raksha Bandhan from {brand}! Here's to the bond that protects, teases and loves unconditionally. Tag your sibling and celebrate! 💖",
     hashtags: ["#RakshaBandhan", "#Rakhi", "#SiblingLove", "#Rakhi2026"],
+  },
+  {
+    date: "2026-09-04", name: "Janmashtami", emoji: "🦚", blurb: "Devotional, joyful.",
+    postType: "image", imageQuery: "krishna janmashtami india festival",
+    caption: "🦚 Happy Janmashtami from {brand}! May Lord Krishna fill your life with love, wisdom and endless joy. Jai Shri Krishna! 🪈",
+    hashtags: ["#Janmashtami", "#JaiShriKrishna", "#Festival", "#Krishna"],
   },
   {
     date: "2026-09-05", name: "Teachers' Day", emoji: "🍎", blurb: "Celebrate your faculty!",
     postType: "carousel", imageQuery: "indian teacher classroom students",
     caption: "🍎 Happy Teachers' Day! At {brand}, our teachers don't just teach — they inspire, encourage and shape futures. Thank you to every mentor who makes a difference. 🙏",
     hashtags: ["#TeachersDay", "#ThankYouTeachers", "#5September", "#Gurus"],
+  },
+  {
+    date: "2026-09-14", name: "Ganesh Chaturthi", emoji: "🐘", blurb: "Auspicious new beginnings.",
+    postType: "carousel", imageQuery: "ganesh chaturthi ganpati festival india",
+    caption: "🐘 Ganpati Bappa Morya! {brand} wishes you a blessed Ganesh Chaturthi. May Lord Ganesha remove every obstacle and bring wisdom and prosperity. 🙏",
+    hashtags: ["#GaneshChaturthi", "#GanpatiBappaMorya", "#Ganeshotsav", "#Blessings"],
+  },
+  {
+    date: "2026-10-02", name: "Gandhi Jayanti", emoji: "🕊️", blurb: "Peace & non-violence.",
+    postType: "image", imageQuery: "gandhi jayanti peace india",
+    caption: "🕊️ On Gandhi Jayanti, {brand} remembers the Father of the Nation. \"Be the change you wish to see in the world.\" Let's lead with truth and kindness.",
+    hashtags: ["#GandhiJayanti", "#2October", "#Peace", "#BeTheChange"],
+  },
+  {
+    date: "2026-10-19", name: "Durga Puja / Navratri", emoji: "🌺", blurb: "Vibrant 9-day celebration.",
+    postType: "carousel", imageQuery: "durga puja navratri festival india",
+    caption: "🌺 Shubho Durga Puja & Happy Navratri from {brand}! May Maa Durga bless you with strength, courage and prosperity. Let the celebrations begin! 🪔",
+    hashtags: ["#DurgaPuja", "#Navratri", "#ShubhoDurgaPuja", "#Festival2026"],
   },
   {
     date: "2026-10-20", name: "Dussehra", emoji: "🏹", blurb: "Victory of good over evil.",
@@ -465,6 +539,24 @@ export const festivals: Festival[] = [
     hashtags: ["#Diwali", "#HappyDiwali", "#FestivalOfLights", "#Diwali2026"],
   },
   {
+    date: "2026-11-10", name: "Bhai Dooj", emoji: "🤝", blurb: "Sibling love finale.",
+    postType: "image", imageQuery: "bhai dooj siblings festival india",
+    caption: "🤝 Happy Bhai Dooj from {brand}! Celebrating the beautiful bond between brothers and sisters. May your relationship grow stronger every year. 💖",
+    hashtags: ["#BhaiDooj", "#SiblingLove", "#Festival", "#Diwali2026"],
+  },
+  {
+    date: "2026-11-14", name: "Children's Day", emoji: "🎈", blurb: "Perfect for education & kids brands.",
+    postType: "carousel", imageQuery: "children day happy kids india",
+    caption: "🎈 Happy Children's Day! At {brand}, every child is a bundle of curiosity and potential. Here's to nurturing bright young minds. Keep dreaming, little ones! 🌟",
+    hashtags: ["#ChildrensDay", "#BalDiwas", "#HappyKids", "#14November"],
+  },
+  {
+    date: "2026-11-24", name: "Guru Nanak Jayanti", emoji: "🪯", blurb: "Devotional, peaceful.",
+    postType: "image", imageQuery: "guru nanak jayanti gurpurab india",
+    caption: "🪯 Happy Gurpurab from {brand}! On Guru Nanak Jayanti, may the teachings of Guru Nanak Dev Ji guide you towards love, humility and service. 🙏",
+    hashtags: ["#GuruNanakJayanti", "#Gurpurab", "#Blessings", "#Festival"],
+  },
+  {
     date: "2026-12-25", name: "Christmas", emoji: "🎄", blurb: "Cheerful seasonal greeting.",
     postType: "image", imageQuery: "christmas tree lights celebration",
     caption: "🎄 Merry Christmas from {brand}! Wishing you a season filled with joy, love and laughter. May your celebrations be merry and bright! ⭐",
@@ -472,65 +564,146 @@ export const festivals: Festival[] = [
   },
 ];
 
+// Several ready-to-use templates per business type. The Content Intelligence
+// page shows ONLY the templates matching the connected account's business type
+// (e.g. an abacus Page never sees gym/salon ideas). Hashtags are tuned to be
+// strong, relevant and discoverable for each industry.
 export const segmentTemplates: SegmentTemplate[] = [
+  // ── Abacus / Mental Maths ──────────────────────────────────────
   {
-    id: "seg_coaching",
-    type: "coaching",
-    label: "Coaching / Tuition",
-    emoji: "📚",
-    prompt: "Promote a results-driven batch with social proof and a demo-class CTA.",
+    id: "seg_abacus_demo", type: "abacus", label: "Abacus — Free Demo Class", emoji: "🧮",
+    prompt: "Invite parents to a free demo / assessment with a speed-maths hook.",
     sampleCaption:
-      "🎯 Results that speak! 9 of our 10 students improved by 2+ grades last term. Book a FREE demo class and see the difference. Limited seats!",
-    hashtags: ["#Coaching", "#BoardExams", "#FreeDemoClass", "#StudySmart"],
+      "🧮 Can your child multiply faster than a calculator? They can! Book a FREE abacus demo class this week and watch focus, speed & confidence grow. Ages 5–14. Limited seats!",
+    hashtags: ["#Abacus", "#MentalMaths", "#AbacusForKids", "#BrainDevelopment", "#FreeDemoClass", "#SmartKids"],
   },
   {
-    id: "seg_gym",
-    type: "gym",
-    label: "Gym / Fitness",
-    emoji: "💪",
+    id: "seg_abacus_result", type: "abacus", label: "Abacus — Student Achievement", emoji: "🏆",
+    prompt: "Show social proof: a student clearing a level or solving sums at speed.",
+    sampleCaption:
+      "🏆 Proud moment! Our Level-5 champ just solved 50 sums in under 2 minutes — all in the head, no calculator. This is what abacus training builds. 👏 Save & share!",
+    hashtags: ["#AbacusChampion", "#MentalArithmetic", "#SpeedMaths", "#ProudMoment", "#MathWhiz", "#FocusAndConfidence"],
+  },
+  {
+    id: "seg_abacus_value", type: "abacus", label: "Abacus — Why It Works (Parents)", emoji: "🧠",
+    prompt: "Educate parents on the benefits of early abacus learning.",
+    sampleCaption:
+      "🧠 Did you know? The brain is most receptive to abacus training before age 12. Early starters build sharper focus, stronger memory and lifelong number sense. Give your child the edge.",
+    hashtags: ["#Abacus", "#ParentingTips", "#EarlyLearning", "#BrainTraining", "#VedicMaths", "#ChildDevelopment"],
+  },
+
+  // ── Coaching / Tuition ─────────────────────────────────────────
+  {
+    id: "seg_coaching_demo", type: "coaching", label: "Coaching — Free Demo Class", emoji: "🎯",
+    prompt: "Promote a results-driven batch with a demo-class CTA.",
+    sampleCaption:
+      "🎯 Results that speak! 9 of 10 of our students improved by 2+ grades last term. Book a FREE demo class and see the difference for yourself. Limited seats!",
+    hashtags: ["#Coaching", "#BoardExams", "#FreeDemoClass", "#StudySmart", "#ExamPrep", "#TopResults"],
+  },
+  {
+    id: "seg_coaching_topper", type: "coaching", label: "Coaching — Topper Spotlight", emoji: "🌟",
+    prompt: "Celebrate a topper to build trust before admission season.",
+    sampleCaption:
+      "🌟 Topper Spotlight! Heartiest congratulations to our student who scored 96.4% in the boards. Hard work + the right guidance = results. Your child could be next! 👏",
+    hashtags: ["#TopperSpotlight", "#BoardResults", "#ProudMoment", "#Coaching", "#StudentSuccess", "#ExamResults"],
+  },
+  {
+    id: "seg_coaching_tip", type: "coaching", label: "Coaching — Study Hack", emoji: "📚",
+    prompt: "Share a quick study tip as a save-worthy reel.",
+    sampleCaption:
+      "📚 Study hack: can't remember formulas? Teach them to a friend in plain words (the Feynman technique). Our students swear by it. Save this for exam season! 🔖",
+    hashtags: ["#StudyHacks", "#ExamTips", "#StudyMotivation", "#Coaching", "#LearnSmart", "#StudentLife"],
+  },
+
+  // ── Playschool / Daycare ───────────────────────────────────────
+  {
+    id: "seg_play_admissions", type: "playschool", label: "Playschool — Admissions Open", emoji: "🧸",
+    prompt: "Reassure parents with safety + play-based learning and an open-house invite.",
+    sampleCaption:
+      "🧸 Admissions open! Safe, loving, play-based learning for ages 2–5. Join our open house this weekend, tour the campus with your little one, and see the giggles for yourself. 💛",
+    hashtags: ["#Playschool", "#Admissions2026", "#EarlyLearning", "#HappyKids", "#PreSchool", "#OpenHouse"],
+  },
+  {
+    id: "seg_play_day", type: "playschool", label: "Playschool — A Day With Us", emoji: "🌈",
+    prompt: "Show a joyful day to build emotional trust with parents.",
+    sampleCaption:
+      "🌈 Finger-painting, story time and a whole lot of giggles! A little peek into a happy day with us — where little ones love to learn and grow. 💕",
+    hashtags: ["#Playschool", "#LearningThroughPlay", "#HappyKids", "#EarlyChildhood", "#KidsActivities", "#PreSchool"],
+  },
+  {
+    id: "seg_play_trial", type: "playschool", label: "Playschool — Free Trial Day", emoji: "🎨",
+    prompt: "Offer a free play-and-learn trial to drive walk-ins.",
+    sampleCaption:
+      "🎨 FREE play-and-learn trial this Saturday! Bring your little one for a fun-filled morning of music, stories and play. Limited spots — message us to reserve. 🧸",
+    hashtags: ["#FreeTrial", "#Playschool", "#EarlyLearning", "#HappyKids", "#ParentingWin", "#OpenHouse"],
+  },
+
+  // ── Gym / Fitness ──────────────────────────────────────────────
+  {
+    id: "seg_gym_transform", type: "gym", label: "Gym — Transformation Offer", emoji: "🔥",
     prompt: "Drive trial memberships with a transformation hook and limited offer.",
     sampleCaption:
-      "🔥 Summer body starts today! First month at 50% off + a free personal training session. Walk in, we'll handle the rest. 💪",
-    hashtags: ["#FitnessGoals", "#GymLife", "#Transformation", "#NoExcuses"],
+      "🔥 Your transformation starts today! First month 50% OFF + a FREE personal-training session. Walk in, we'll handle the rest. 💪 Limited slots this week.",
+    hashtags: ["#FitnessGoals", "#Transformation", "#GymLife", "#NoExcuses", "#FitFam", "#StartToday"],
   },
   {
-    id: "seg_playschool",
-    type: "playschool",
-    label: "Playschool / Daycare",
-    emoji: "🧸",
-    prompt: "Reassure parents with safety, play-based learning, and an open-house invite.",
+    id: "seg_gym_result", type: "gym", label: "Gym — Member Result", emoji: "🏆",
+    prompt: "Show a real member result to build credibility.",
     sampleCaption:
-      "🧸 Where little ones learn through play! Safe, loving, and full of giggles. Join our open house this weekend and tour the campus with your child.",
-    hashtags: ["#Playschool", "#EarlyLearning", "#HappyKids", "#OpenHouse"],
+      "🏆 Real results: our member dropped 12 kg in 90 days! Consistency + coaching = change. Tag someone who's ready to start their journey. 💪",
+    hashtags: ["#Transformation", "#WeightLoss", "#FitFam", "#GymMotivation", "#Results", "#FitnessJourney"],
   },
   {
-    id: "seg_abacus",
-    type: "abacus",
-    label: "Abacus / Mental Maths",
-    emoji: "🧮",
-    prompt: "Showcase speed-maths results and invite for a free assessment.",
+    id: "seg_gym_trial", type: "gym", label: "Gym — Free Trial Week", emoji: "🎟️",
+    prompt: "Offer a free trial week to lower the barrier to entry.",
     sampleCaption:
-      "🧮 Watch a 7-year-old multiply faster than a calculator! Our abacus programme builds focus & confidence. Free assessment this week.",
-    hashtags: ["#Abacus", "#MentalMaths", "#KidsLearning", "#BrainTraining"],
+      "🎟️ Try us FREE for a whole week! Top equipment, expert trainers and the friendliest gym floor in town. No pressure — just come move. Walk in today. 🏋️",
+    hashtags: ["#FreeTrial", "#GymLife", "#Fitness", "#WorkoutMotivation", "#HealthyLifestyle", "#StartToday"],
   },
+
+  // ── Salon / Beauty ─────────────────────────────────────────────
   {
-    id: "seg_salon",
-    type: "salon",
-    label: "Salon / Beauty",
-    emoji: "💇",
+    id: "seg_salon_package", type: "salon", label: "Salon — Glow-Up Package", emoji: "✨",
     prompt: "Highlight a seasonal package and easy booking.",
     sampleCaption:
-      "✨ Festive glow-up package is here! Hair, skin & nails — pampered head to toe. Book your slot before they're gone. 💅",
-    hashtags: ["#Salon", "#GlowUp", "#SelfCare", "#FestiveLook"],
+      "✨ Festive glow-up package is here! Hair, skin & nails — pampered head to toe. Book your slot before they're gone. You deserve this. 💅",
+    hashtags: ["#Salon", "#GlowUp", "#SelfCare", "#FestiveLook", "#BeautySalon", "#PamperYourself"],
   },
   {
-    id: "seg_restaurant",
-    type: "restaurant",
-    label: "Restaurant / Café",
-    emoji: "🍽️",
+    id: "seg_salon_bridal", type: "salon", label: "Salon — Bridal Transformation", emoji: "👰",
+    prompt: "Show a bridal transformation reel for high engagement.",
+    sampleCaption:
+      "💄 Swipe to see this stunning bridal transformation by our team! Your big day deserves nothing less than perfect. Booking for the wedding season now. 👰",
+    hashtags: ["#BridalMakeup", "#BridalLook", "#Salon", "#MakeupArtist", "#WeddingSeason", "#GlamSquad"],
+  },
+  {
+    id: "seg_salon_tip", type: "salon", label: "Salon — Care Tip", emoji: "💆",
+    prompt: "Share a quick beauty/hair-care tip as a save-worthy post.",
+    sampleCaption:
+      "💆 Frizz, meet your match! 3 quick monsoon hair-care tips from our stylists that actually work. Save this and thank us later. 💧",
+    hashtags: ["#HairCare", "#BeautyTips", "#SelfCare", "#Salon", "#SkinCare", "#HairGoals"],
+  },
+
+  // ── Restaurant / Café ──────────────────────────────────────────
+  {
+    id: "seg_rest_special", type: "restaurant", label: "Restaurant — Weekend Special", emoji: "🍽️",
     prompt: "Feature a signature dish and a weekend offer.",
     sampleCaption:
-      "🍽️ The weekend just got tastier! Our chef's special thali + free dessert, this Saturday & Sunday only. Reserve your table now.",
-    hashtags: ["#Foodie", "#WeekendVibes", "#ChefSpecial", "#PuneEats"],
+      "🍽️ The weekend just got tastier! Chef's special thali + a FREE dessert, this Saturday & Sunday only. Bring the family — reserve your table now.",
+    hashtags: ["#Foodie", "#WeekendSpecial", "#ChefSpecial", "#FoodLovers", "#DineIn", "#InstaFood"],
+  },
+  {
+    id: "seg_rest_bts", type: "restaurant", label: "Restaurant — Behind The Kitchen", emoji: "🔥",
+    prompt: "Show how a signature dish is made as a reel.",
+    sampleCaption:
+      "🔥 Ever wondered how our signature biryani is made? Here's a peek behind the kitchen. Tag a foodie friend who needs to taste this! 🍛",
+    hashtags: ["#Biryani", "#FoodReel", "#BehindTheScenes", "#Foodie", "#FoodPorn", "#ChefLife"],
+  },
+  {
+    id: "seg_rest_offer", type: "restaurant", label: "Restaurant — BOGO Offer", emoji: "🎉",
+    prompt: "Run a limited buy-one-get-one offer to drive footfall.",
+    sampleCaption:
+      "🎉 Buy 1 Get 1 FREE on all starters this week! Bring the gang, taste it all. Dine-in only — don't miss it. 🍴",
+    hashtags: ["#Offer", "#FoodieLife", "#BOGO", "#FamilyDinner", "#WeekendVibes", "#FoodDeals"],
   },
 ];

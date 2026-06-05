@@ -1,4 +1,4 @@
-import { Eye, MousePointerClick, Share2, MessageCircle, Sparkles, PlayCircle } from "lucide-react";
+import { Eye, MousePointerClick, Share2, MessageCircle, Sparkles, PlayCircle, ThumbsUp, Heart } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/ui/Stat";
 import { Badge } from "@/components/ui/Badge";
@@ -27,7 +27,7 @@ const bestDays = [
 ];
 
 export default async function AnalyticsPage() {
-  const { posts, analytics } = await getClientData();
+  const { posts, analytics, live } = await getClientData();
   const totals = analytics.reduce(
     (acc, a) => ({
       reach: acc.reach + a.reach,
@@ -35,10 +35,12 @@ export default async function AnalyticsPage() {
       clicks: acc.clicks + a.clicks,
       shares: acc.shares + a.shares,
       comments: acc.comments + a.comments,
+      reactions: acc.reactions + a.reactions,
       videoViews: acc.videoViews + a.videoViews,
     }),
-    { reach: 0, impressions: 0, clicks: 0, shares: 0, comments: 0, videoViews: 0 }
+    { reach: 0, impressions: 0, clicks: 0, shares: 0, comments: 0, reactions: 0, videoViews: 0 }
   );
+  const totalEngagements = totals.reactions + totals.comments + totals.shares;
 
   const ranked = [...analytics].sort((a, b) => b.engagementRate - a.engagementRate);
   const top = ranked[0];
@@ -59,17 +61,29 @@ export default async function AnalyticsPage() {
         subtitle="Reach, engagement and best-time insights pulled from the Page & post Insights API, with an AI-written plain-language summary."
       />
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <StatCard label="Total reach" value={compact(totals.reach)} delta={{ value: "18%", up: true }} icon={<Eye className="h-5 w-5" />} />
-        <StatCard label="Video views" value={compact(totals.videoViews)} delta={{ value: "32%", up: true }} icon={<PlayCircle className="h-5 w-5" />} />
-        <StatCard label="Link clicks" value={compact(totals.clicks)} delta={{ value: "9%", up: true }} icon={<MousePointerClick className="h-5 w-5" />} />
-        <StatCard label="Shares" value={compact(totals.shares)} delta={{ value: "21%", up: true }} icon={<Share2 className="h-5 w-5" />} />
-      </div>
+      {/* Live pages: lead with the engagement we actually have (reach/clicks need
+          the read_insights permission, which isn't granted). Demo: full funnel. */}
+      {live ? (
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+          <StatCard label="Reactions" value={compact(totals.reactions)} icon={<ThumbsUp className="h-5 w-5" />} />
+          <StatCard label="Comments" value={compact(totals.comments)} icon={<MessageCircle className="h-5 w-5" />} />
+          <StatCard label="Shares" value={compact(totals.shares)} icon={<Share2 className="h-5 w-5" />} />
+          <StatCard label="Total engagement" value={compact(totalEngagements)} icon={<Heart className="h-5 w-5" />} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+          <StatCard label="Total reach" value={compact(totals.reach)} delta={{ value: "18%", up: true }} icon={<Eye className="h-5 w-5" />} />
+          <StatCard label="Video views" value={compact(totals.videoViews)} delta={{ value: "32%", up: true }} icon={<PlayCircle className="h-5 w-5" />} />
+          <StatCard label="Link clicks" value={compact(totals.clicks)} delta={{ value: "9%", up: true }} icon={<MousePointerClick className="h-5 w-5" />} />
+          <StatCard label="Shares" value={compact(totals.shares)} delta={{ value: "21%", up: true }} icon={<Share2 className="h-5 w-5" />} />
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="card p-5 lg:col-span-2">
           <h2 className="mb-2 font-semibold">Reach & engagement (30 days)</h2>
           <TrendChart data={trend} />
+          {live && <p className="mt-2 text-xs text-ink-400">Trend is illustrative — daily reach history needs the read_insights permission.</p>}
         </div>
         <div className="card p-5">
           <h2 className="mb-2 font-semibold">Best day to post</h2>
@@ -100,7 +114,7 @@ export default async function AnalyticsPage() {
             <thead className="bg-ink-50 text-left text-xs uppercase tracking-wide text-ink-500">
               <tr>
                 <th className="p-3 font-semibold">Post</th>
-                <th className="p-3 font-semibold">Reach</th>
+                <th className="p-3 font-semibold">{live ? <><ThumbsUp className="inline h-3.5 w-3.5" /> Reactions</> : "Reach"}</th>
                 <th className="p-3 font-semibold"><MessageCircle className="inline h-3.5 w-3.5" /> Comments</th>
                 <th className="p-3 font-semibold"><Share2 className="inline h-3.5 w-3.5" /> Shares</th>
                 <th className="p-3 font-semibold">Engagement</th>
@@ -117,7 +131,7 @@ export default async function AnalyticsPage() {
                         <span className="line-clamp-1 max-w-[220px] font-medium">{p.title}</span>
                       </div>
                     </td>
-                    <td className="p-3 text-ink-600">{compact(a.reach)}</td>
+                    <td className="p-3 text-ink-600">{compact(live ? a.reactions : a.reach)}</td>
                     <td className="p-3 text-ink-600">{a.comments}</td>
                     <td className="p-3 text-ink-600">{a.shares}</td>
                     <td className="p-3">
