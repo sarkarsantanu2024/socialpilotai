@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   CalendarHeart,
+  CalendarClock,
   Layers,
   Sparkles,
   Check,
@@ -56,8 +57,65 @@ export function IntelligenceClient({
 }
 
 function FestivalLibrary({ festivals }: { festivals: Festival[] }) {
-  const { kit, tenantId } = useBrand();
+  const { kit, tenantId, profile } = useBrand();
   const upcoming = festivals.filter((f) => f.date >= "2026-06-03");
+
+  // Connected-page info (so auto-schedule only shows for a real, live Page).
+  const [page, setPage] = useState<{ connected: boolean; name: string | null }>({ connected: false, name: null });
+  useEffect(() => {
+    fetch("/api/fb/status", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((s) => setPage({ connected: !!s.connected, name: s.activePage?.name ?? null }))
+      .catch(() => {});
+  }, []);
+
+  // Auto-schedule every upcoming festival to the connected Page using FACEBOOK'S
+  // native scheduling (scheduled_publish_time) — Facebook publishes each on the
+  // day, so it works per client account with no server cron.
+  const [sched, setSched] = useState<{ busy: boolean; done: number; total: number; msg: string | null }>({
+    busy: false, done: 0, total: 0, msg: null,
+  });
+
+  async function autoSchedule() {
+    const now = Date.now();
+    // Facebook allows scheduling 10 min – 6 months out; stay safely inside that.
+    const within = upcoming.filter((f) => {
+      const t = new Date(`${f.date}T09:00:00+05:30`).getTime();
+      return t > now + 36e5 && t < now + 170 * 864e5;
+    });
+    if (!within.length) {
+      setSched({ busy: false, done: 0, total: 0, msg: "⚠ No festivals fall within Facebook's 6-month scheduling window." });
+      return;
+    }
+    if (!window.confirm(`Schedule ${within.length} festival posts to ${page.name}?\n\nFacebook will automatically publish each one on its festival date.`)) return;
+
+    setSched({ busy: true, done: 0, total: within.length, msg: null });
+    let ok = 0, fail = 0;
+    for (let i = 0; i < within.length; i++) {
+      const f = within[i];
+      let assetUrl: string | undefined;
+      try {
+        const d = await fetch(`/api/image?q=${encodeURIComponent(f.imageQuery || f.name)}&n=1`).then((r) => r.json());
+        assetUrl = d.images?.[0];
+      } catch { /* schedule as text if image fetch fails */ }
+      const caption = `${(f.caption || "").replaceAll("{brand}", profile.name)}\n\n${(f.hashtags || []).join(" ")}`;
+      try {
+        const res = await fetch("/api/publish", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ caption, assetUrl, scheduledAt: `${f.date}T09:00:00+05:30` }),
+        });
+        const d = await res.json();
+        d.ok === false ? fail++ : ok++;
+      } catch { fail++; }
+      setSched((s) => ({ ...s, done: i + 1 }));
+    }
+    setSched({
+      busy: false, done: within.length, total: within.length,
+      msg: `✓ Scheduled ${ok} post${ok !== 1 ? "s" : ""}${fail ? `, ${fail} failed` : ""}. Facebook will publish each on its festival date.`,
+    });
+  }
+
   return (
     <div className="space-y-4">
       <div className="card flex flex-wrap items-center gap-3 bg-amber-50/60 p-4">
@@ -67,6 +125,28 @@ function FestivalLibrary({ festivals }: { festivals: Festival[] }) {
           <b>auto-stamped with your brand kit</b> ({kit.logoText}). Edit anything, then add to your calendar.
         </p>
       </div>
+
+      {/* Auto-schedule banner — only for a connected, live Page */}
+      {page.connected && (
+        <div className="card flex flex-col gap-3 bg-brand-50/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <CalendarClock className="h-5 w-5 shrink-0 text-brand-600" />
+            <p className="text-sm text-brand-800">
+              <b>Auto-publish all festivals</b> to {page.name ?? "your Page"} — Facebook posts each one automatically on the day. Switch client &amp; repeat for every account.
+            </p>
+          </div>
+          <button onClick={autoSchedule} disabled={sched.busy} className="btn-primary shrink-0 text-sm">
+            {sched.busy
+              ? <><RefreshCw className="h-4 w-4 animate-spin" /> Scheduling {sched.done}/{sched.total}…</>
+              : <><CalendarClock className="h-4 w-4" /> Auto-schedule festivals</>}
+          </button>
+        </div>
+      )}
+      {sched.msg && (
+        <p className={cn("text-xs font-medium", sched.msg.startsWith("✓") ? "text-emerald-600" : "text-rose-600")}>
+          {sched.msg}
+        </p>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {upcoming.map((f) => (
@@ -288,19 +368,25 @@ function FestivalCard({ f }: { f: Festival }) {
 
 function SegmentLibrary({ segments }: { segments: SegmentTemplate[] }) {
   const { profile } = useBrand();
+  // Show ONLY templates that match the connected account's business type, so an
+  // abacus centre never sees gym/salon/restaurant ideas. Fall back to all if the
+  // type has no dedicated templates (rare).
+  const mine = segments.filter((s) => s.type === profile.type);
+  const shown = mine.length ? mine : segments;
   return (
     <div className="space-y-4">
       <div className="card flex flex-wrap items-center gap-3 bg-brand-50/60 p-4">
         <Layers className="h-5 w-5 text-brand-600" />
         <p className="text-sm text-brand-800">
-          Segment templates by business type. AI rewrites the tone, offer &amp; hashtags for <b>your</b> profile —{" "}
-          <span className="font-semibold capitalize">{profile.type}</span> in {profile.city}.
+          Templates tailored to your business type —{" "}
+          <span className="font-semibold capitalize">{profile.type}</span> in {profile.city}. AI rewrites the
+          tone, offer &amp; hashtags for <b>{profile.name}</b>.
         </p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {segments.map((s) => (
-          <SegmentCard key={s.id} s={s} isMine={s.type === profile.type} />
+        {shown.map((s) => (
+          <SegmentCard key={s.id} s={s} isMine />
         ))}
       </div>
     </div>
@@ -325,13 +411,12 @@ function SegmentCard({ s, isMine }: { s: SegmentTemplate; isMine: boolean }) {
     : s.sampleCaption;
 
   return (
-    <div className={cn("card p-5", isMine && "ring-2 ring-brand-200")}>
+    <div className={cn("card p-5", isMine && "ring-1 ring-brand-100")}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-2xl">{s.emoji}</span>
           <h3 className="font-semibold">{s.label}</h3>
         </div>
-        {isMine && <Badge tone="blue">Your segment</Badge>}
       </div>
 
       <p className="mt-2 text-xs text-ink-400">{s.prompt}</p>
