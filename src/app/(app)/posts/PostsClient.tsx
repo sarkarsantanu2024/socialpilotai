@@ -154,7 +154,7 @@ export function PostsClient({ initial }: { initial: Post[] }) {
                     </a>
                   ) : (
                     <span className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-50 py-2.5 text-xs font-medium text-emerald-700">
-                      <CheckCircle2 className="h-3.5 w-3.5" /> Published (demo)
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Published
                     </span>
                   )
                 ) : (
