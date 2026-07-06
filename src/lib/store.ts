@@ -91,6 +91,9 @@ function mapPost(p: {
     scheduledAt: p.scheduledAt?.toISOString(),
     publishedAt: p.publishedAt?.toISOString(),
     fbPostId: p.fbPostId ?? undefined,
+    // A published post carries a real Facebook post id (publishing now requires a
+    // live connection) — build its permalink so the UI links to the real post.
+    permalink: p.status === "published" && p.fbPostId ? `https://www.facebook.com/${p.fbPostId}` : undefined,
     source: p.source as Post["source"],
   };
 }
