@@ -27,7 +27,15 @@ export function PostsClient({ initial }: { initial: Post[] }) {
     const res = await fetch("/api/publish", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ caption: post.caption, assetUrl: post.assetUrl }),
+      body: JSON.stringify({
+        postId: post.id,
+        caption: post.caption,
+        assetUrl: post.assetUrl,
+        title: post.title,
+        type: post.type,
+        hashtags: post.hashtags,
+        music: post.music,
+      }),
     });
     const data = await res.json();
     setItems((prev) =>
@@ -60,14 +68,15 @@ export function PostsClient({ initial }: { initial: Post[] }) {
     if (live) {
       const res = await fetch(`/api/publish?id=${encodeURIComponent(post.fbPostId!)}`, { method: "DELETE" });
       const data = await res.json();
-      setBusy(null);
       if (!data.ok) {
+        setBusy(null);
         alert(`Couldn't delete on Facebook: ${data.error}`);
         return;
       }
-    } else {
-      setBusy(null);
     }
+    // Remove the DB row too (no-op for FB-only posts that aren't in our DB).
+    await fetch(`/api/posts?id=${encodeURIComponent(post.id)}`, { method: "DELETE" }).catch(() => {});
+    setBusy(null);
     setItems((prev) => prev.filter((p) => p.id !== post.id));
   }
 

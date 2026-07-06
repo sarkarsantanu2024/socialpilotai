@@ -8,15 +8,24 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model Tenant {
   id        String   @id @default(cuid())
-  email     String   @unique
-  password  String // hashed
+  username  String   @unique
+  email     String?  @unique // optional — for receipts, reminders, password reset
+  password  String // hashed (bcrypt)
+  name      String? // owner / account name
   createdAt DateTime @default(now())
+
+  // Billing / plan gating
+  plan         String    @default("trial") // trial | starter | pro
+  planStatus   String    @default("active") // active | past_due | canceled
+  planRenewsAt DateTime?
+  trialEndsAt  DateTime?
 
   businessProfile BusinessProfile?
   brandKit        BrandKit?
@@ -160,11 +169,11 @@ model Campaign {
 }
 
 model Lead {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   tenantId     String
-  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  campaignId   String
-  campaign     Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  campaignId   String?
+  campaign     Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   name         String
   phone        String?
   email        String?

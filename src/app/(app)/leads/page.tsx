@@ -3,19 +3,12 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/ui/Stat";
 import { LeadsClient } from "./LeadsClient";
 import { getClientData } from "@/lib/clientData";
-import { getConnection, activePage } from "@/lib/fb/session";
-import { getCapturedLeads } from "@/lib/fb/store";
 import { inr } from "@/lib/utils";
 
 export default async function LeadsPage() {
-  const { leads: liveLeads, campaigns } = await getClientData();
-  // Real leads captured via the Lead Ads webhook (live = no dummy); demo otherwise.
-  const page = activePage(getConnection());
-  const captured = page ? getCapturedLeads(page.id) : [];
-  const leads = [...captured, ...liveLeads];
-  // ROI: combine Ads Insights (spend) with captured leads.
-  const completed = campaigns.find((c) => c.status === "COMPLETED");
-  const spend = completed?.spend ?? 0;
+  const { leads, campaigns } = await getClientData();
+  // ROI: combine ad spend across the tenant's campaigns with captured leads.
+  const spend = campaigns.reduce((s, c) => s + c.spend, 0);
   const costPerLead = leads.length ? spend / leads.length : 0;
 
   return (

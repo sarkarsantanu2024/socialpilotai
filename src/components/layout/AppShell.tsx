@@ -22,7 +22,6 @@ import { navItems } from "./nav";
 import { cn } from "@/lib/utils";
 import { DEMO_MODE } from "@/lib/config";
 import { useBrand } from "@/lib/brand/store";
-import { clearSession } from "@/lib/auth";
 
 type Notif = { id: string; icon: typeof Bell; title: string; time: string; unread: boolean };
 
@@ -82,10 +81,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [menu]);
 
   async function logout() {
-    // Server-side clear (sp_session is httpOnly after Facebook login, so JS alone
-    // can't remove it); also clear the client cookie + FB connection.
+    // Clears the httpOnly session cookie + Facebook connection server-side.
     await fetch("/api/logout", { method: "POST" }).catch(() => {});
-    clearSession();
     router.push("/login");
     router.refresh();
   }
@@ -266,7 +263,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <div className="border-b border-ink-100 px-4 py-3">
                     <p className="truncate text-sm font-semibold">{bizName}</p>
                     <p className="truncate text-xs text-ink-400">
-                      {connectedName ? "● Connected via Facebook" : "demo@socialpilot.ai"}
+                      {connectedName ? "● Connected via Facebook" : bizSub || "Your workspace"}
                     </p>
                   </div>
 

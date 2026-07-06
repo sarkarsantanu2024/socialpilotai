@@ -1,13 +1,19 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { SESSION_COOKIE } from "@/lib/auth";
+
+// Cookie name kept in sync with src/lib/session.ts. We only check PRESENCE here
+// (Edge runtime can't run the Node HMAC verify) — every server page/route then
+// verifies the signature via getCurrentTenant/getSessionTenantId. A forged
+// cookie passes the middleware but is rejected at the data layer.
+const SESSION_COOKIE = "sp_session";
 
 // Public routes anyone can reach without a session.
 const PUBLIC_PATHS = ["/", "/login", "/signup"];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  const authed = req.cookies.get(SESSION_COOKIE)?.value === "1";
+  const token = req.cookies.get(SESSION_COOKIE)?.value;
+  const authed = !!token && token.includes(".");
   const isPublic = PUBLIC_PATHS.includes(pathname);
 
   // Gate the app routes behind login.

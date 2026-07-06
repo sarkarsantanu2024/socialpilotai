@@ -17,6 +17,9 @@ body {
 
 body {
   @apply bg-ink-50 text-ink-900 antialiased;
+  background-image: radial-gradient(1000px 500px at 100% -5%, rgba(59, 108, 246, 0.06), transparent 55%);
+  background-attachment: fixed;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
 
 /* Thin scrollbars */
@@ -31,18 +34,29 @@ body {
   @apply bg-ink-300;
 }
 
+@layer base {
+  h1, h2, h3, h4 {
+    @apply tracking-tight;
+    letter-spacing: -0.018em;
+  }
+}
+
 @layer components {
   .card {
-    @apply rounded-2xl border border-ink-100 bg-white shadow-card;
+    @apply rounded-2xl border border-ink-100/80 bg-white shadow-card;
+  }
+  /* Interactive cards get a subtle lift on hover. */
+  .card-hover {
+    @apply transition duration-200 hover:-translate-y-0.5 hover:shadow-lift hover:border-brand-100;
   }
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition active:scale-[.98] disabled:opacity-50 disabled:pointer-events-none;
   }
   .btn-primary {
-    @apply btn bg-brand-600 text-white hover:bg-brand-700 shadow-sm;
+    @apply btn bg-brand-gradient text-white shadow-brand hover:brightness-105 hover:shadow-lift;
   }
   .btn-ghost {
-    @apply btn bg-white text-ink-700 border border-ink-200 hover:bg-ink-50;
+    @apply btn bg-white text-ink-700 border border-ink-200 hover:bg-ink-50 hover:border-ink-300;
   }
   .btn-soft {
     @apply btn bg-brand-50 text-brand-700 hover:bg-brand-100;
@@ -55,6 +69,9 @@ body {
   }
   .chip {
     @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium;
+  }
+  .gradient-text {
+    @apply bg-gradient-to-r from-brand-500 to-brand-700 bg-clip-text text-transparent;
   }
 }
 

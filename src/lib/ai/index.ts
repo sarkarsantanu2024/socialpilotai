@@ -1,8 +1,8 @@
 // ───────────────────────────────────────────────────────────────
-// ai/ — single service wrapping Google Gemini (Flash-Lite) with a
-// MOCK LAYER. In DEMO_MODE (or when GEMINI_API_KEY is missing) every
-// function returns realistic fake data instantly. Swap in the real
-// fetch() calls behind the same signatures for production.
+// ai/ — single service wrapping Google Gemini with a MOCK FALLBACK.
+// If GEMINI_API_KEY is set (and DEMO_MODE off) we call the real API;
+// on ANY failure (bad key, quota, network) we fall back to the mock so
+// the app never crashes. This makes the product resilient in production.
 // ───────────────────────────────────────────────────────────────
 import { hasGemini } from "@/lib/config";
 import type { BusinessProfile, PostVariation } from "@/lib/types";
@@ -14,7 +14,32 @@ export interface GenerateInput {
   tone?: string;
 }
 
-// ---- MOCK LAYER ---------------------------------------------------
+const TEXT_MODEL = process.env.GEMINI_TEXT_MODEL ?? "gemini-2.0-flash";
+
+// ---- REAL GEMINI CALL --------------------------------------------
+
+async function geminiText(prompt: string, json = false): Promise<string> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new Error("no key");
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${TEXT_MODEL}:generateContent?key=${key}`;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const body: any = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
+  if (json) body.generationConfig = { responseMimeType: "application/json", temperature: 0.9 };
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error?.message ?? "Gemini request failed");
+  const text: string =
+    data.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("") ?? "";
+  if (!text.trim()) throw new Error("Gemini returned empty response");
+  return text;
+}
+
+// ---- MOCK FALLBACK LAYER -----------------------------------------
 
 const HASHTAG_BANK = [
   "#PuneCoaching", "#StudySmart", "#BoardExams", "#FreeDemoClass",
@@ -81,45 +106,90 @@ export async function generateVariations(
   input: GenerateInput
 ): Promise<PostVariation[]> {
   if (!hasGemini()) {
-    // simulate model latency for a realistic demo feel
-    await delay(900);
+    await delay(700);
     return mockGenerate(input);
   }
-  // Real path (production): call Gemini, parse JSON, map to PostVariation[].
-  // const res = await fetch(`https://generativelanguage.googleapis.com/...`)
-  throw new Error("Real Gemini path not configured in this demo build.");
+  try {
+    const { profile, prompt, type } = input;
+    const wantsMusic = type === "reel" || type === "video";
+    const sys = `You are a senior social media copywriter for small Indian businesses.
+Write 3 DISTINCT Facebook post variations for this business.
+
+Business: ${profile.name}
+Type: ${profile.type}
+City: ${profile.city}
+Audience: ${profile.audience}
+Brand tone: ${profile.tone}
+Language: ${profile.language} (write in this language; keep it natural, not translated-sounding)
+
+The owner's request/offer: "${prompt || "a general engaging post"}"
+
+Return ONLY a JSON array of exactly 3 objects, each with:
+- "title": short punchy headline (max 8 words)
+- "caption": 2-4 sentence Facebook caption with 1-2 relevant emojis, warm and local
+- "hashtags": array of exactly 5 relevant hashtags (each starting with #, no spaces)
+- "cta": a 2-3 word call to action (e.g. "Book now", "Message us")
+${wantsMusic ? '- "music": a short royalty-free background music suggestion for a reel' : ""}
+No markdown, no commentary — just the JSON array.`;
+
+    const raw = await geminiText(sys, true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const parsed: any[] = JSON.parse(raw);
+    if (!Array.isArray(parsed) || !parsed.length) throw new Error("bad shape");
+    return parsed.slice(0, 3).map((v, i) => ({
+      id: `var_${i + 1}`,
+      title: String(v.title ?? "").slice(0, 90) || `Variation ${i + 1}`,
+      caption: String(v.caption ?? ""),
+      hashtags: Array.isArray(v.hashtags)
+        ? v.hashtags.map((h: string) => (h.startsWith("#") ? h : `#${h}`)).slice(0, 5)
+        : [],
+      music: wantsMusic ? String(v.music ?? MUSIC_BANK[i % MUSIC_BANK.length]) : "—",
+      cta: String(v.cta ?? "Learn more"),
+    }));
+  } catch (e) {
+    console.warn("[ai] Gemini generateVariations failed, using fallback:", (e as Error).message);
+    return mockGenerate(input);
+  }
 }
 
 // ---- IMAGE GENERATION --------------------------------------------
-// The demo generates real images for FREE via Pollinations.ai directly in the
-// browser (see aiImageUrl() in StudioClient.tsx) — no key, no cost. This server
-// path is the PAID production upgrade: higher quality, reliability and control.
-// Wire one in here and return its URL; the UI uses it in place of the gradient.
-//
-// Recommended providers (approx, Jan 2026 list pricing):
-//   • Google Imagen 3 (via Gemini API)  ~$0.03 / image   — best price/quality, same SDK as captions
-//   • OpenAI gpt-image-1                ~$0.04 / image    — strong text-in-image rendering
-//   • Stability AI SD3.5 (API)          ~$0.04 / image    — cheap, self-hostable
-//   • fal.ai / Replicate (FLUX.1)       ~$0.003–0.05/img  — pay-per-second, good for batches
-// Budget tip: 3 variations × ~$0.03 ≈ $0.09 (~₹8) per generate click.
-export async function generateImage(_input: {
+// Production image generation via Gemini Imagen. On any failure we return null
+// and the UI falls back to its branded gradient template / Pexels stock — so a
+// missing image never breaks the flow.
+export async function generateImage(input: {
   prompt: string;
   profile: BusinessProfile;
 }): Promise<string | null> {
   if (!hasGemini()) {
-    // Demo: no real generation — the UI falls back to the branded template.
-    await delay(600);
+    await delay(500);
     return null;
   }
-  // Production path (example — Imagen 3 via Gemini):
-  //   const res = await fetch(
-  //     `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${process.env.GEMINI_API_KEY}`,
-  //     { method: "POST", headers: { "Content-Type": "application/json" },
-  //       body: JSON.stringify({ instances: [{ prompt: buildBrandedPrompt(_input) }], parameters: { sampleCount: 1 } }) }
-  //   );
-  //   const data = await res.json();
-  //   return `data:image/png;base64,${data.predictions[0].bytesBase64Encoded}`;
-  throw new Error("Real image generation not configured in this demo build.");
+  try {
+    const key = process.env.GEMINI_API_KEY!;
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${key}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          instances: [
+            {
+              prompt: `High-quality marketing photo for ${input.profile.name}, a ${input.profile.type} in ${input.profile.city}, India. ${input.prompt}. Bright, professional, social-media ready, no text overlay.`,
+            },
+          ],
+          parameters: { sampleCount: 1, aspectRatio: "1:1" },
+        }),
+        cache: "no-store",
+      }
+    );
+    const data = await res.json();
+    const b64 = data?.predictions?.[0]?.bytesBase64Encoded;
+    if (!b64) return null;
+    return `data:image/png;base64,${b64}`;
+  } catch (e) {
+    console.warn("[ai] Gemini image generation failed, using template:", (e as Error).message);
+    return null;
+  }
 }
 
 export async function generateReport(summary: {
@@ -128,11 +198,25 @@ export async function generateReport(summary: {
   engagementRate: number;
   growth: number;
 }): Promise<string> {
+  const fallback = `📈 Great fortnight! Your reach grew **${summary.growth}%** and your best post — "${summary.topPost}" — drove an engagement rate of **${summary.engagementRate}%**, well above your page average. Recommendation: keep posting short study-tip reels twice a week, and consider promoting your top reel for lead generation while interest is high.`;
   if (!hasGemini()) {
-    await delay(700);
-    return `📈 Great fortnight! Your reach grew **${summary.growth}%** and your best post — "${summary.topPost}" — drove an engagement rate of **${summary.engagementRate}%**, well above your page average. Reels are clearly resonating with parents. Recommendation: keep posting short study-tip reels twice a week, and consider promoting your top reel for lead generation while interest is high.`;
+    await delay(600);
+    return fallback;
   }
-  throw new Error("Real Gemini path not configured in this demo build.");
+  try {
+    const prompt = `You are a friendly marketing analyst writing for a non-technical small business owner.
+Write a SHORT (2-3 sentence) plain-language performance summary from these numbers:
+- Best post: "${summary.topPost}"
+- Reach: ${summary.reach}
+- Engagement rate: ${summary.engagementRate}%
+- Reach growth vs last period: ${summary.growth}%
+
+Be encouraging, use 1 emoji, use **bold** for the key numbers, and END with one concrete recommendation. No headings, no bullet list — just the paragraph.`;
+    return await geminiText(prompt);
+  } catch (e) {
+    console.warn("[ai] Gemini generateReport failed, using fallback:", (e as Error).message);
+    return fallback;
+  }
 }
 
 function delay(ms: number) {

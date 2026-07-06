@@ -170,6 +170,30 @@ export function StudioClient() {
     return images[i] ?? images[0];
   }
 
+  // Save the current variation as a draft in the tenant's Posts.
+  async function saveDraft() {
+    if (!result) return;
+    const httpImage = fmt.kind === "image" ? images.find((u) => u.startsWith("http")) : undefined;
+    const caption = `${result.caption}\n\n${result.hashtags.join(" ")}`;
+    try {
+      const res = await fetch("/api/posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          caption,
+          assetUrl: httpImage,
+          title: result.title,
+          type: fmt.postType,
+          hashtags: result.hashtags,
+          music: result.music && result.music !== "—" ? result.music : undefined,
+        }),
+      });
+      if (res.ok) setSaved(true);
+    } catch {
+      /* keep the UI usable; user can retry */
+    }
+  }
+
   // Publish (or schedule) to the connected Facebook Page (real if connected, else demo).
   async function publish(when?: string) {
     if (!result) return;
@@ -182,7 +206,15 @@ export function StudioClient() {
       const res = await fetch("/api/publish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ caption, assetUrl: httpImage, scheduledAt: when || undefined }),
+        body: JSON.stringify({
+          caption,
+          assetUrl: httpImage,
+          scheduledAt: when || undefined,
+          title: result.title,
+          type: fmt.postType,
+          hashtags: result.hashtags,
+          music: result.music && result.music !== "—" ? result.music : undefined,
+        }),
       });
       const data = await res.json();
       setPublished({
@@ -421,7 +453,7 @@ export function StudioClient() {
                   {saved ? "Saved as draft! Find it under Posts → Drafts." : "Happy with this post?"}
                 </p>
                 <div className="flex w-full gap-2 sm:w-auto">
-                  <button onClick={() => setSaved(true)} disabled={saved} className="btn-ghost flex-1 sm:flex-none">
+                  <button onClick={saveDraft} disabled={saved} className="btn-ghost flex-1 sm:flex-none">
                     {saved ? <><Check className="h-4 w-4" /> Saved</> : "Save draft"}
                   </button>
                   <button onClick={() => setShowSchedule((s) => !s)} className="btn-ghost flex-1 sm:flex-none">

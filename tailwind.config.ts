@@ -37,21 +37,32 @@ const config: Config = {
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],
       },
       boxShadow: {
-        card: "0 1px 2px rgba(16,24,40,0.05), 0 1px 3px rgba(16,24,40,0.06)",
-        pop: "0 12px 32px rgba(16,24,40,0.12)",
+        card: "0 1px 2px rgba(16,24,40,0.04), 0 4px 12px -2px rgba(16,24,40,0.05)",
+        pop: "0 16px 48px -12px rgba(16,24,40,0.18)",
+        lift: "0 8px 24px -8px rgba(36,79,219,0.22)",
+        brand: "0 6px 16px -4px rgba(36,79,219,0.45)",
+      },
+      backgroundImage: {
+        "brand-gradient": "linear-gradient(135deg, #3b6cf6 0%, #244fdb 55%, #1c3fb0 100%)",
+        "brand-radial": "radial-gradient(1200px 600px at 80% -10%, rgba(59,108,246,0.10), transparent 60%)",
       },
       keyframes: {
         "fade-up": {
-          "0%": { opacity: "0", transform: "translateY(6px)" },
+          "0%": { opacity: "0", transform: "translateY(8px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
         shimmer: {
           "100%": { transform: "translateX(100%)" },
         },
+        float: {
+          "0%,100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-6px)" },
+        },
       },
       animation: {
-        "fade-up": "fade-up 0.3s ease-out",
+        "fade-up": "fade-up 0.4s cubic-bezier(0.16,1,0.3,1)",
         shimmer: "shimmer 1.5s infinite",
+        float: "float 6s ease-in-out infinite",
       },
     },
   },

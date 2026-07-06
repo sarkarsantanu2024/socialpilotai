@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { SESSION_COOKIE } from "@/lib/auth";
+import { clearSessionCookie } from "@/lib/session";
 import { clearConnection } from "@/lib/fb/session";
 
-// Clears the session server-side. Needed because the Facebook login flow sets
-// sp_session as httpOnly, which client-side JS can't delete. Also drops the
-// Facebook Page connection so logout fully signs out.
+// Clears the session server-side (the cookie is httpOnly, so client JS can't
+// delete it) and drops the Facebook Page connection so logout fully signs out.
 export async function POST() {
-  cookies().delete(SESSION_COOKIE);
+  clearSessionCookie();
   clearConnection();
   return NextResponse.json({ ok: true });
 }
