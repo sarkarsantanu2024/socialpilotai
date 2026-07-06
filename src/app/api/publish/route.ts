@@ -12,6 +12,18 @@ export async function POST(req: Request) {
   const tenant = await getCurrentTenant();
   const scheduled = !!body.scheduledAt;
 
+  // Require a real Facebook connection to publish/schedule — no silent "demo" posts.
+  if (!page) {
+    return NextResponse.json(
+      {
+        ok: false,
+        needsConnection: true,
+        error: "Connect your Facebook Page first (Settings → Connect Facebook Page) to publish.",
+      },
+      { status: 400 }
+    );
+  }
+
   try {
     const result = await publishPost({
       pageId: page?.id ?? tenant?.id ?? "local",

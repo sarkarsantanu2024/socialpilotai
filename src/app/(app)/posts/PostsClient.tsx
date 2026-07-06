@@ -38,6 +38,15 @@ export function PostsClient({ initial }: { initial: Post[] }) {
       }),
     });
     const data = await res.json();
+    if (!data.ok) {
+      setBusy(null);
+      alert(
+        data.needsConnection
+          ? "Connect your Facebook Page first: go to Settings → Connect Facebook Page, then publish."
+          : `Couldn't publish: ${data.error ?? "unknown error"}`
+      );
+      return;
+    }
     setItems((prev) =>
       prev.map((p) =>
         p.id === post.id
@@ -45,7 +54,6 @@ export function PostsClient({ initial }: { initial: Post[] }) {
               ...p,
               status: "published",
               fbPostId: data.fbPostId,
-              // Real, clickable URL only when actually published live to a Page.
               permalink: data.live ? data.permalink : undefined,
               publishedAt: new Date().toISOString(),
             }
