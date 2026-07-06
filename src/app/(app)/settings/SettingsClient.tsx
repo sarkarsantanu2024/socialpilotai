@@ -3,14 +3,21 @@
 import { useEffect, useRef, useState } from "react";
 import { Facebook, Check, Building2, Palette, Link2, CreditCard, ShieldCheck, Upload, X, Loader2, Plug } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
-import { adAccount } from "@/lib/demo/data";
 import { useBrand } from "@/lib/brand/store";
 import type { BusinessType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const BUSINESS_TYPES: BusinessType[] = ["coaching", "gym", "playschool", "abacus", "salon", "restaurant"];
 
-export function SettingsClient() {
+export interface PlanInfo {
+  plan: string;
+  status: string;
+  trialDaysLeft: number;
+  username: string;
+  email: string | null;
+}
+
+export function SettingsClient({ plan }: { plan: PlanInfo }) {
   const { brand, setProfile, setKit } = useBrand();
   const { profile, kit } = brand;
   const [saved, setSaved] = useState(false);
@@ -163,8 +170,8 @@ export function SettingsClient() {
             <div className="flex items-center gap-3">
               <span className="grid h-10 w-10 place-items-center rounded-xl bg-amber-100 text-amber-700"><ShieldCheck className="h-5 w-5" /></span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold">Sandbox ad account</p>
-                <p className="font-mono text-xs text-ink-400">{adAccount.actId}</p>
+                <p className="truncate text-sm font-semibold">Ad account</p>
+                <p className="text-xs text-ink-400">Connect via “Ads &amp; Leads” above to run campaigns</p>
               </div>
               <Badge tone="amber">Sandbox</Badge>
             </div>
@@ -174,20 +181,7 @@ export function SettingsClient() {
           </div>
         </section>
 
-        <section className="card p-5">
-          <div className="mb-3 flex items-center gap-2">
-            <CreditCard className="h-5 w-5 text-brand-500" />
-            <h2 className="font-semibold">Plan & billing</h2>
-          </div>
-          <div className="rounded-xl bg-brand-50 p-4">
-            <p className="text-sm text-brand-700">Current plan</p>
-            <p className="text-2xl font-bold text-brand-900">₹499<span className="text-sm font-medium">/month</span></p>
-            <p className="mt-1 text-xs text-brand-600">Razorpay billing is stubbed behind a flag in this demo.</p>
-          </div>
-          <button className={cn("btn-ghost mt-3 w-full text-sm")} disabled>
-            Manage subscription (disabled in demo)
-          </button>
-        </section>
+        <PlanCard plan={plan} />
       </div>
     </div>
   );
@@ -314,6 +308,77 @@ function FacebookCard() {
         Development mode — acts only on Pages you have a role on. No App Review needed for testing.
       </p>
     </div>
+  );
+}
+
+const PLANS = [
+  { key: "starter", name: "Starter", price: 499, blurb: "1 Page · AI posts · scheduling · analytics" },
+  { key: "pro", name: "Pro", price: 999, blurb: "Everything + ad recommendations, leads & priority AI" },
+];
+
+function PlanCard({ plan }: { plan: PlanInfo }) {
+  const current = plan.plan === "trial" ? "Free trial" : plan.plan === "pro" ? "Pro" : "Starter";
+  const onTrial = plan.plan === "trial";
+
+  return (
+    <section className="card p-5">
+      <div className="mb-3 flex items-center gap-2">
+        <CreditCard className="h-5 w-5 text-brand-500" />
+        <h2 className="font-semibold">Plan &amp; billing</h2>
+      </div>
+
+      {/* Current status */}
+      <div className="rounded-xl bg-brand-gradient p-4 text-white shadow-brand">
+        <p className="text-sm text-brand-100">Current plan</p>
+        <p className="text-2xl font-bold">{current}</p>
+        {onTrial ? (
+          <p className="mt-1 text-xs text-brand-100">
+            {plan.trialDaysLeft > 0
+              ? `${plan.trialDaysLeft} day${plan.trialDaysLeft === 1 ? "" : "s"} left in your free trial`
+              : "Your trial has ended — choose a plan to keep publishing."}
+          </p>
+        ) : (
+          <p className="mt-1 text-xs text-brand-100 capitalize">Status: {plan.status}</p>
+        )}
+      </div>
+
+      {/* Tiers */}
+      <div className="mt-3 space-y-2">
+        {PLANS.map((p) => {
+          const active = plan.plan === p.key;
+          return (
+            <div
+              key={p.key}
+              className={cn(
+                "flex items-center gap-3 rounded-xl border p-3",
+                active ? "border-brand-300 bg-brand-50" : "border-ink-100"
+              )}
+            >
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold">
+                  {p.name} <span className="text-ink-400">· ₹{p.price}/mo</span>
+                </p>
+                <p className="truncate text-[11px] text-ink-500">{p.blurb}</p>
+              </div>
+              {active ? (
+                <Badge tone="green">Current</Badge>
+              ) : (
+                <a
+                  href={`mailto:systems@webspiders.com?subject=Upgrade to ${p.name} (₹${p.price}/mo)`}
+                  className="btn-soft text-xs"
+                >
+                  Upgrade
+                </a>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <p className="mt-3 text-[11px] text-ink-400">
+        Payments are handled manually for now — tap <b>Upgrade</b> to request a plan; automated
+        card/UPI billing can be switched on later.
+      </p>
+    </section>
   );
 }
 

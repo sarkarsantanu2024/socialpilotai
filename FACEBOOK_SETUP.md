@@ -23,7 +23,7 @@ to their Page**. The code is already built — you just need a Meta app and keys
 3. In the app dashboard, **Add Product → Facebook Login → Set up**.
 4. Facebook Login → **Settings** → **Valid OAuth Redirect URIs**, add:
    ```
-   http://localhost:3001/api/auth/facebook/callback
+   http://localhost:3000/api/auth/facebook/callback
    ```
    (and your production URL later, e.g. `https://app.yoursite.com/api/auth/facebook/callback`)
 5. From **App Settings → Basic**, copy the **App ID** and **App Secret**.
@@ -36,7 +36,7 @@ Edit **`.env.local`** (create if missing — it is gitignored):
 NEXT_PUBLIC_DEMO_MODE=false
 FB_APP_ID=your_app_id
 FB_APP_SECRET=your_app_secret
-FB_REDIRECT_URI=http://localhost:3001/api/auth/facebook/callback
+FB_REDIRECT_URI=http://localhost:3000/api/auth/facebook/callback
 TOKEN_ENC_KEY=<64-char hex>   # optional but recommended; openssl rand -hex 32
 ```
 

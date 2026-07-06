@@ -1,17 +1,25 @@
-// Server-side: the data for the active client.
-//  • Connected (live): posts/analytics are REAL Facebook data. Leads & campaigns
-//    are empty until real Lead Ads / paid campaigns exist (NO dummy data). The ad
-//    recommendation is derived from the client's real top-engaging post.
-//  • Not connected: the per-tenant demo dataset (demo mode only).
-import { getConnection, activePage, type FbPage } from "@/lib/fb/session";
+// Server-side: the data for the logged-in tenant.
+//  • Base: the tenant's OWN rows from Postgres (drafts, scheduled posts, leads,
+//    campaigns). A brand-new account is empty — no dummy data.
+//  • If a Facebook Page is connected: real published posts + engagement are
+//    overlaid live from the Graph API, and an ad recommendation is derived from
+//    the real top-performing post.
+import { getConnection, activePage } from "@/lib/fb/session";
 import { fetchPageData } from "@/lib/meta";
-import { activeTenantData } from "@/lib/tenant";
+import { getCurrentTenant } from "@/lib/currentTenant";
+import { getTenantBundle } from "@/lib/store";
 import { guessBusinessType, type TenantData } from "@/lib/demo/tenantData";
-import type { AdRecommendation, Post, PostAnalytics } from "@/lib/types";
+import type { AdRecommendation, BusinessType, Post, PostAnalytics } from "@/lib/types";
 
 export interface ClientData extends TenantData {
   live: boolean; // true when posts/analytics are real Facebook data
 }
+
+const EMPTY: ClientData = {
+  live: false,
+  page: { id: "", pageId: "", name: "Your Business", category: "Business", followers: 0, connected: false, avatar: "" },
+  posts: [], analytics: [], leads: [], campaigns: [], recommendations: [],
+};
 
 const INTERESTS: Record<string, string[]> = {
   abacus: ["Parenting", "Education", "Kids activities", "Mental maths"],
@@ -22,15 +30,20 @@ const INTERESTS: Record<string, string[]> = {
   restaurant: ["Food and drink", "Dining out", "Foodies"],
 };
 
-// Build a single ad recommendation from the REAL top-engaging post.
-function buildRecommendations(posts: Post[], analytics: PostAnalytics[], page: FbPage): AdRecommendation[] {
-  if (!posts.length) return [];
+// Build a single ad recommendation from the top-engaging post (real or local).
+function buildRecommendations(
+  posts: Post[],
+  analytics: PostAnalytics[],
+  ctx: { name: string; category?: string; city?: string; type?: BusinessType }
+): AdRecommendation[] {
+  const published = posts.filter((p) => p.status === "published");
+  if (!published.length || !analytics.length) return [];
   const topA = [...analytics].sort(
     (a, b) => b.reactions + b.comments + b.shares - (a.reactions + a.comments + a.shares)
   )[0];
-  const top = posts.find((p) => p.id === topA?.postId) ?? posts[0];
-  const type = guessBusinessType(`${page.name} ${page.category ?? ""}`) ?? "coaching";
-  const city = page.city || "your city";
+  const top = published.find((p) => p.id === topA?.postId) ?? published[0];
+  const type = ctx.type ?? guessBusinessType(`${ctx.name} ${ctx.category ?? ""}`) ?? "coaching";
+  const city = ctx.city || "your city";
   return [
     {
       id: `rec_${top.id}`,
@@ -50,22 +63,46 @@ function buildRecommendations(posts: Post[], analytics: PostAnalytics[], page: F
 }
 
 export async function getClientData(): Promise<ClientData> {
-  const page = activePage(getConnection());
-  if (!page) return { live: false, ...activeTenantData() };
+  const tenant = await getCurrentTenant();
+  if (!tenant) return EMPTY;
 
-  try {
-    const real = await fetchPageData(page.id, page.token);
-    return {
-      live: true,
-      page: { ...activeTenantData().page, ...real.page },
-      posts: real.posts,
-      analytics: real.analytics,
-      leads: [], // real leads arrive via the Lead Ads webhook (merged on the Leads page)
-      campaigns: [], // no real campaigns until a paid ad is run
-      recommendations: buildRecommendations(real.posts, real.analytics, page),
-    };
-  } catch (e) {
-    console.warn("[clientData] live fetch failed:", (e as Error).message);
-    return { live: false, ...activeTenantData() };
+  const bundle = await getTenantBundle(tenant);
+  const profileType = (tenant.businessProfile?.type as BusinessType) ?? "coaching";
+  const city = tenant.businessProfile?.city ?? "";
+
+  const fbPage = activePage(getConnection());
+  if (fbPage) {
+    try {
+      const real = await fetchPageData(fbPage.id, fbPage.token);
+      // Local drafts/scheduled posts (not yet on Facebook) + real published posts.
+      const localUnpublished = bundle.posts.filter((p) => p.status !== "published");
+      const posts = [...localUnpublished, ...real.posts];
+      return {
+        live: true,
+        page: { ...bundle.page, ...real.page, connected: true },
+        posts,
+        analytics: real.analytics,
+        leads: bundle.leads,
+        campaigns: bundle.campaigns,
+        recommendations: buildRecommendations(real.posts, real.analytics, {
+          name: real.page.name ?? fbPage.name,
+          category: fbPage.category,
+          city: fbPage.city || city,
+        }),
+      };
+    } catch (e) {
+      console.warn("[clientData] live Facebook fetch failed, using DB only:", (e as Error).message);
+    }
   }
+
+  return {
+    live: false,
+    ...bundle,
+    recommendations: buildRecommendations(bundle.posts, bundle.analytics, {
+      name: bundle.page.name,
+      category: bundle.page.category,
+      city,
+      type: profileType,
+    }),
+  };
 }

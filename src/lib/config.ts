@@ -7,8 +7,14 @@ export const FB_GRAPH_VERSION = process.env.FB_GRAPH_VERSION ?? "v20.0";
 export const DEMO_MODE =
   process.env.NEXT_PUBLIC_DEMO_MODE !== "false"; // default: true
 
+// A value counts as "set" only if it's non-empty AND not a leftover placeholder
+// (so an unfilled `PASTE_..._HERE` in .env.local doesn't trigger the real path).
+function isSet(v?: string) {
+  return !!v && v.trim() !== "" && !v.includes("PASTE_") && !v.includes("_HERE");
+}
+
 export function hasGemini() {
-  return !DEMO_MODE && !!process.env.GEMINI_API_KEY;
+  return !DEMO_MODE && isSet(process.env.GEMINI_API_KEY);
 }
 
 export function hasFacebook() {
@@ -42,7 +48,7 @@ export function webhookVerifyToken() {
 // Must EXACTLY match a redirect URI whitelisted in the Meta app (Facebook Login
 // settings). Defaults to the local dev port.
 export function fbRedirectUri() {
-  return process.env.FB_REDIRECT_URI ?? "http://localhost:3001/api/auth/facebook/callback";
+  return process.env.FB_REDIRECT_URI ?? "http://localhost:3000/api/auth/facebook/callback";
 }
 
 export const PAYMENTS_ENABLED = process.env.PAYMENTS_ENABLED === "true";

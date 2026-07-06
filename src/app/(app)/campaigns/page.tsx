@@ -4,7 +4,6 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge, Badge } from "@/components/ui/Badge";
 import { StatCard } from "@/components/ui/Stat";
 import { GoLiveButton } from "@/components/ads/GoLiveButton";
-import { adAccount } from "@/lib/demo/data";
 import { getClientData } from "@/lib/clientData";
 import { inr, compact, fmtDate } from "@/lib/utils";
 
@@ -31,9 +30,8 @@ export default async function CampaignsPage() {
       <div className="card flex flex-wrap items-center gap-3 bg-amber-50/60 p-4">
         <ShieldCheck className="h-5 w-5 text-amber-600" />
         <p className="text-sm text-amber-800">
-          Ad account <b className="font-mono">{adAccount.actId}</b> ·{" "}
-          <Badge tone="amber">Sandbox</Badge> · funding {adAccount.fundingOk ? "ready" : "not connected"} — campaigns
-          cannot deliver or charge.
+          <Badge tone="amber">Sandbox</Badge> Campaigns are created <b>paused</b> and cannot deliver
+          or charge until you connect a funded ad account and press “Go live”.
         </p>
       </div>
 

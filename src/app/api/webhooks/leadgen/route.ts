@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { FB_GRAPH_VERSION, webhookVerifyToken } from "@/lib/config";
 import { getPageToken, addLead } from "@/lib/fb/store";
+import { resolvePage } from "@/lib/fb/pages";
+import { prisma } from "@/lib/db";
 import type { Lead } from "@/lib/types";
 
 const GRAPH = `https://graph.facebook.com/${FB_GRAPH_VERSION}`;
@@ -25,8 +27,13 @@ export async function POST(req: Request) {
       const v = change.value ?? {};
       const pageId: string | undefined = v.page_id ?? entry.id;
       const leadgenId: string | undefined = v.leadgen_id;
-      const token = pageId ? getPageToken(pageId) : undefined;
-      if (!leadgenId || !pageId || !token) continue;
+      if (!leadgenId || !pageId) continue;
+
+      // Resolve the owning tenant + Page token from the DB (webhook has no
+      // session). Fall back to the in-process token cache for same-instance dev.
+      const resolved = await resolvePage(pageId).catch(() => null);
+      const token = resolved?.token ?? getPageToken(pageId);
+      if (!token) continue;
 
       try {
         const res = await fetch(`${GRAPH}/${leadgenId}?fields=field_data,created_time&access_token=${token}`, { cache: "no-store" });
@@ -47,7 +54,24 @@ export async function POST(req: Request) {
           createdAt: data.created_time ?? new Date().toISOString(),
           isTest: false,
         };
-        addLead(pageId, lead);
+        addLead(pageId, lead); // in-process cache (dev)
+
+        // Persist to the owning tenant's DB so it shows across sessions/instances.
+        if (resolved) {
+          await prisma.lead.upsert({
+            where: { id: leadgenId },
+            create: {
+              id: leadgenId,
+              tenantId: resolved.tenantId,
+              name: lead.name,
+              phone: lead.phone || null,
+              email: lead.email || null,
+              interest: lead.interest || null,
+              isTest: false,
+            },
+            update: {},
+          }).catch(() => {});
+        }
       } catch {
         /* skip this lead; Meta will not be retried since we 200 below */
       }

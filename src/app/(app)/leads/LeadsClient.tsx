@@ -16,24 +16,21 @@ export function LeadsClient({ initial }: { initial: Lead[] }) {
   const [leads, setLeads] = useState(initial);
   const [busy, setBusy] = useState(false);
 
-  function addTestLead() {
+  async function addTestLead() {
     setBusy(true);
-    setTimeout(() => {
-      const s = SAMPLE[leads.length % SAMPLE.length];
-      const newLead: Lead = {
-        id: `lead_${leads.length + 1}`,
-        campaignId: "camp_001",
-        campaignName: "Class 10 Crash Course — Leads (Sandbox)",
-        name: s.name,
-        phone: s.phone,
-        email: s.email,
-        interest: s.interest,
-        createdAt: new Date().toISOString(),
-        isTest: true,
-      };
-      setLeads((prev) => [newLead, ...prev]);
-      setBusy(false);
-    }, 700);
+    const s = SAMPLE[leads.length % SAMPLE.length];
+    try {
+      const res = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: s.name, phone: s.phone, email: s.email, interest: s.interest }),
+      });
+      const data = await res.json();
+      if (data.ok && data.lead) setLeads((prev) => [data.lead as Lead, ...prev]);
+    } catch {
+      /* ignore — user can retry */
+    }
+    setBusy(false);
   }
 
   return (

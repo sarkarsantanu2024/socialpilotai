@@ -1,22 +1,49 @@
 import { NextResponse } from "next/server";
 import { publishPost, GRAPH_VERSION } from "@/lib/meta";
-import { connectedPage } from "@/lib/demo/data";
 import { getConnection, activePage } from "@/lib/fb/session";
+import { getCurrentTenant } from "@/lib/currentTenant";
+import { prisma } from "@/lib/db";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
 
-  // If a real Facebook Page is connected, publish there for real; else demo.
+  // If a real Facebook Page is connected, publish there for real; else record-only.
   const page = activePage(getConnection());
+  const tenant = await getCurrentTenant();
+  const scheduled = !!body.scheduledAt;
 
   try {
     const result = await publishPost({
-      pageId: page?.id ?? connectedPage.pageId,
+      pageId: page?.id ?? tenant?.id ?? "local",
       pageToken: page?.token,
       caption: body.caption ?? "",
       assetUrl: body.assetUrl,
       scheduledAt: body.scheduledAt,
     });
+
+    // Persist to the tenant's history so it shows in Posts / Calendar / Analytics.
+    if (tenant) {
+      const caption: string = body.caption ?? "";
+      const data = {
+        type: (body.type as string) ?? "image",
+        status: scheduled ? "scheduled" : "published",
+        title: (body.title ?? caption.split("\n")[0] ?? "Post").slice(0, 80) || "Post",
+        caption,
+        hashtags: Array.isArray(body.hashtags) ? body.hashtags : [],
+        music: body.music ?? null,
+        assetUrl: body.assetUrl ?? null,
+        scheduledAt: scheduled ? new Date(body.scheduledAt) : null,
+        publishedAt: scheduled ? null : new Date(),
+        fbPostId: result.fbPostId ?? null,
+        source: (body.source as string) ?? "studio",
+      };
+      if (body.postId) {
+        await prisma.post.updateMany({ where: { id: body.postId, tenantId: tenant.id }, data });
+      } else {
+        await prisma.post.create({ data: { ...data, tenantId: tenant.id } });
+      }
+    }
+
     return NextResponse.json({ ok: true, ...result, live: !!page, pageName: page?.name ?? null });
   } catch (e) {
     // Surface the real Graph API error to the UI instead of a silent 500.
