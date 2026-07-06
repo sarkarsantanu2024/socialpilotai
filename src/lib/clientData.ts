@@ -74,9 +74,15 @@ export async function getClientData(): Promise<ClientData> {
   if (fbPage) {
     try {
       const real = await fetchPageData(fbPage.id, fbPage.token);
-      // Local drafts/scheduled posts (not yet on Facebook) + real published posts.
-      const localUnpublished = bundle.posts.filter((p) => p.status !== "published");
-      const posts = [...localUnpublished, ...real.posts];
+      // Merge: our DB posts + the Page's live posts, without duplicates.
+      //  • drafts/scheduled → always from DB (not on Facebook yet)
+      //  • just-published posts → keep the DB copy until Facebook's API indexes it
+      //    (there's a few-minute lag), then the live copy dedupes it out by fbPostId.
+      const realFbIds = new Set(real.posts.map((p) => p.fbPostId).filter(Boolean));
+      const dbExtra = bundle.posts.filter(
+        (p) => p.status !== "published" || (p.fbPostId ? !realFbIds.has(p.fbPostId) : true)
+      );
+      const posts = [...dbExtra, ...real.posts];
       return {
         live: true,
         page: { ...bundle.page, ...real.page, connected: true },
