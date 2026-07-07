@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
-import { clearConnection } from "@/lib/fb/session";
 import { getSessionTenantId } from "@/lib/session";
-import { clearPages } from "@/lib/fb/pages";
+import { disconnect } from "@/lib/fb/connection";
 
+// Disconnect Facebook for the ACTIVE CENTER only (removes its pages + tokens).
 export async function POST() {
-  clearConnection();
   const tenantId = getSessionTenantId();
-  if (tenantId) await clearPages(tenantId).catch(() => {});
+  if (tenantId) await disconnect(tenantId).catch(() => {});
   return NextResponse.json({ ok: true });
 }

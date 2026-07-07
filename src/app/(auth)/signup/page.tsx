@@ -37,8 +37,8 @@ export default function SignupPage() {
         setLoading(false);
         return;
       }
-      router.push("/dashboard");
-      router.refresh();
+      // Account created — send them to login to sign in (no auto-login).
+      router.push("/login?registered=1");
     } catch {
       setError("Something went wrong. Please try again.");
       setLoading(false);

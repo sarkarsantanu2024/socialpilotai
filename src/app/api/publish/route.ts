@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
 import { publishPost, GRAPH_VERSION } from "@/lib/meta";
-import { getConnection, activePage } from "@/lib/fb/session";
+import { getActivePage } from "@/lib/fb/connection";
 import { getCurrentTenant } from "@/lib/currentTenant";
+import { notify } from "@/lib/notify";
 import { prisma } from "@/lib/db";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
 
   // If a real Facebook Page is connected, publish there for real; else record-only.
-  const page = activePage(getConnection());
+  const page = await getActivePage();
   const tenant = await getCurrentTenant();
   const scheduled = !!body.scheduledAt;
 
@@ -54,6 +55,12 @@ export async function POST(req: Request) {
       } else {
         await prisma.post.create({ data: { ...data, tenantId: tenant.id } });
       }
+      await notify(tenant.id, {
+        title: scheduled ? "Post scheduled" : "Post published",
+        body: `"${data.title}" ${scheduled ? "is scheduled" : "is now live on your Page"}.`,
+        type: "publish",
+        href: "/posts",
+      });
     }
 
     return NextResponse.json({ ok: true, ...result, live: !!page, pageName: page?.name ?? null });
@@ -77,7 +84,7 @@ export async function DELETE(req: Request) {
   const id = new URL(req.url).searchParams.get("id");
   if (!id) return NextResponse.json({ ok: false, error: "Missing post id" });
 
-  const page = activePage(getConnection());
+  const page = await getActivePage();
   if (!page) return NextResponse.json({ ok: false, error: "Demo mode — nothing to delete on Facebook" });
 
   const base = `https://graph.facebook.com/${GRAPH_VERSION}`;

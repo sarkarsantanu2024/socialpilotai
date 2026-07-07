@@ -22,6 +22,7 @@ export async function GET(req: Request) {
   const due = await prisma.post.findMany({
     where: {
       status: "scheduled",
+      approvalStatus: "approved", // never auto-publish content awaiting approval
       ...(force ? {} : { scheduledAt: { lte: now } }),
     },
     take: 50,

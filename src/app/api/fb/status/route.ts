@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { fbAppConfigured } from "@/lib/config";
-import { getConnection, activePage } from "@/lib/fb/session";
+import { getConnection, getActivePage } from "@/lib/fb/connection";
 
-// Connection status for the UI. Never returns tokens to the browser.
+// Connection status for the ACTIVE CENTER (from the DB). Never returns tokens.
 export async function GET() {
-  const conn = getConnection();
-  const active = activePage(conn);
+  const conn = await getConnection();
+  const active = await getActivePage();
   return NextResponse.json({
     configured: fbAppConfigured(),
     connected: !!conn,
@@ -15,6 +15,8 @@ export async function GET() {
     adsConnected: !!conn?.adAccountId,
     adAccountId: conn?.adAccountId ?? null,
     // Active page identity — drives the app's brand (name, logo, category).
-    activePage: active ? { id: active.id, name: active.name, category: active.category ?? null, picture: active.picture ?? null, city: active.city ?? null } : null,
+    activePage: active
+      ? { id: active.id, name: active.name, category: active.category ?? null, picture: active.picture ?? null, city: active.city ?? null }
+      : null,
   });
 }

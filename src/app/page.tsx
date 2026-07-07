@@ -15,7 +15,7 @@ const features = [
   { icon: CalendarDays, title: "Schedule & Publish", desc: "Plan a month of Facebook posts and auto-publish on time." },
   { icon: BarChart3, title: "Analytics", desc: "Reach, engagement & best-time insights with a plain-language report." },
   { icon: Megaphone, title: "Ad Decisioning", desc: "AI tells you which post to promote — you approve, it runs (paused)." },
-  { icon: Users, title: "Leads", desc: "Capture lead-form submissions and see cost-per-lead in real time." },
+  { icon: Users, title: "Leads", desc: "Collect enquiries and manage every lead in one place — with one-tap WhatsApp follow-up." },
 ];
 
 const plans = [

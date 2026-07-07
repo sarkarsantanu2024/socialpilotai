@@ -27,15 +27,118 @@ model Tenant {
   planRenewsAt DateTime?
   trialEndsAt  DateTime?
 
+  // A Tenant is a single CENTER (one Facebook Page / one business location).
+  // It belongs to an Organization (a brand/franchise, or a 1-center org for a
+  // standalone shop). See Organization / User / Membership below.
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  memberships    Membership[]  @relation("CenterMemberships")
+  invites        Invite[]      @relation("CenterInvites")
+  onboarded      Boolean       @default(false) // completed the setup wizard
+
   businessProfile BusinessProfile?
   brandKit        BrandKit?
   pages           ConnectedPage[]
+  fbConnection    FbConnection?
   adAccounts      AdAccount[]
   posts           Post[]
   calendar        ContentCalendar[]
   recommendations AdRecommendation[]
   campaigns       Campaign[]
   leads           Lead[]
+}
+
+// ── Multi-tenant hierarchy ──────────────────────────────────────────────────
+// Organization = a brand / franchise (e.g. "Mind Mantra Abacus" with 300+
+// centers) OR a single independent shop (a 1-center org). People are Users; a
+// Membership grants a User a role either over the whole org (owner/HO) or over
+// one center (manager/staff). A platform SUPER-ADMIN (User.platformRole) sits
+// above every organization.
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  vertical  String? // abacus | coaching | gym | playschool | salon | restaurant
+  createdAt DateTime @default(now())
+
+  // Billing lives at the org level for chains; standalone shops bill their org too.
+  plan         String    @default("trial") // trial | starter | pro
+  planStatus   String    @default("active")
+  planRenewsAt DateTime?
+
+  centers         Tenant[]
+  memberships     Membership[]
+  invites         Invite[]
+  contentPushes   ContentPush[]
+  paymentRequests PaymentRequest[]
+}
+
+// A manual UPI/QR payment (no gateway). The customer pays via any UPI app to our
+// UPI id / QR, enters the reference, and a super-admin activates the plan. Keeps
+// payments simple and gateway-risk-free.
+model PaymentRequest {
+  id                String       @id @default(cuid())
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan              String // starter | pro
+  amount            Int // INR
+  cycle             String       @default("monthly")
+  status            String       @default("pending") // pending | activated | rejected
+  upiRef            String? // txn/reference id the payer enters
+  requestedByUserId String?
+  createdAt         DateTime     @default(now())
+  decidedAt         DateTime?
+  decidedByUserId   String?
+
+  @@index([status, createdAt])
+}
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  email        String?  @unique
+  password     String // bcrypt
+  name         String?
+  platformRole String   @default("none") // superadmin | none
+  createdAt    DateTime @default(now())
+
+  memberships Membership[]
+  invitesSent Invite[]     @relation("InvitedBy")
+}
+
+// A pending invitation to join an organization. The recipient opens the link
+// (/invite/<token>), sets their own password, and becomes a User with the given
+// role — so NO passwords are ever shared. Owners/HO invite center managers;
+// super-admins can invite org owners.
+model Invite {
+  id              String       @id @default(cuid())
+  token           String       @unique // random, in the invite URL
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role            String // owner | manager | staff
+  centerId        String? // for manager/staff invites scoped to one center
+  center          Tenant?      @relation("CenterInvites", fields: [centerId], references: [id], onDelete: Cascade)
+  email           String? // optional prefill / who it's for
+  invitedByUserId String?
+  invitedBy       User?        @relation("InvitedBy", fields: [invitedByUserId], references: [id], onDelete: SetNull)
+  status          String       @default("pending") // pending | accepted | revoked
+  createdAt       DateTime     @default(now())
+  expiresAt       DateTime?
+  acceptedAt      DateTime?
+}
+
+model Membership {
+  id             String       @id @default(cuid())
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role           String // owner (HO, all centers) | manager (assigned center) | staff (draft only)
+  // When set, the membership is scoped to ONE center. Null for org-wide owners.
+  centerId       String?
+  center         Tenant?      @relation("CenterMemberships", fields: [centerId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@unique([userId, organizationId, centerId])
 }
 
 model BusinessProfile {
@@ -49,6 +152,7 @@ model BusinessProfile {
   language String
   tone     String
   audience String
+  whatsapp String? // business WhatsApp number for click-to-chat lead follow-up
 }
 
 model BrandKit {
@@ -71,9 +175,26 @@ model ConnectedPage {
   pageId    String
   name      String
   category  String?
-  followers Int      @default(0)
+  picture   String? // page profile photo (used as the brand logo)
+  city      String? // page location city (seeds profile + ad targeting)
+  followers Int     @default(0)
   pageToken String // ENCRYPTED
-  connected Boolean  @default(true)
+  connected Boolean @default(true)
+  isActive  Boolean @default(false) // the active Page for this center
+}
+
+// Connection-level data for a center's Facebook link (one per center). Holds
+// the long-lived user token + ad account, which the per-Page ConnectedPage rows
+// don't carry. Replaces the old httpOnly cookie so each center's connection is
+// isolated and survives logout. Server-only; tokens ENCRYPTED.
+model FbConnection {
+  id          String   @id @default(cuid())
+  tenantId    String   @unique
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userName    String?
+  userToken   String? // ENCRYPTED — Marketing API / ads_management
+  adAccountId String? // act_xxx when an ad account is connected (premium)
+  updatedAt   DateTime @updatedAt
 }
 
 model AdAccount {
@@ -102,9 +223,65 @@ model Post {
   scheduledAt DateTime?
   publishedAt DateTime?
   fbPostId    String?
-  source      String    @default("studio")
+  source      String    @default("studio") // studio | pushed (from HO)
+
+  // Approval workflow. "approved" = ready to publish/schedule normally.
+  // "pending" = awaiting a manager/owner's approval (e.g. HO-pushed content or a
+  // staff draft). "rejected" = declined. Cron never publishes non-approved posts.
+  approvalStatus String  @default("approved")
+  pushId         String? // links back to the ContentPush that created it (if any)
 
   analytics PostAnalytics?
+}
+
+// Content the HO/owner composes once and pushes to many centers. It fans out
+// into one (pending) Post per target center, with {center}/{city} placeholders
+// localized. Lets a franchise run consistent campaigns across all centers.
+// Immutable record of who did what (content push/approve, center/invite create,
+// publish, plan change…). Loose foreign keys (ids only) so history survives even
+// if the referenced row is later deleted.
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String?
+  centerId       String?
+  actorUserId    String?
+  actorName      String
+  action         String // e.g. content.push, content.approve, center.create, invite.create, post.publish, plan.activate
+  detail         String? // human-readable summary
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([centerId, createdAt])
+}
+
+// Real in-app notifications, scoped to a CENTER (anyone operating that center
+// sees them). Created by actual events, not seeded.
+model Notification {
+  id        String   @id @default(cuid())
+  tenantId  String // the center this notification belongs to
+  title     String
+  body      String?
+  type      String   @default("info") // info | approval | publish | lead | warning
+  href      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, read, createdAt])
+}
+
+model ContentPush {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdByUserId String?
+  title          String
+  caption        String
+  hashtags       String[]
+  type           String       @default("image")
+  assetUrl       String?
+  suggestedAt    DateTime? // suggested publish time for centers
+  targetCount    Int          @default(0)
+  createdAt      DateTime     @default(now())
 }
 
 model PostAnalytics {
@@ -179,5 +356,11 @@ model Lead {
   email        String?
   interest     String?
   isTest       Boolean  @default(false)
+  // CRM-lite: pipeline status + free-text notes + optional assignee.
+  status           String   @default("new") // new | contacted | enrolled | lost
+  notes            String?
+  assignedToUserId String?
   createdAt    DateTime @default(now())
+
+  @@index([tenantId, status])
 }

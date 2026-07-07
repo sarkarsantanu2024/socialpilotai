@@ -7,9 +7,9 @@ export default async function AdsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        phase="Phase 5 · Ad decisioning engine"
-        title="Ad Recommendations"
-        subtitle="AI ranks your posts by performance and recommends which to promote — objective, audience, budget and expected outcome. Edit, approve or reject. Nothing runs without you."
+        phase="Promote"
+        title="Boost recommendations"
+        subtitle="AI ranks your posts by real performance and recommends your best one to promote — with a suggested budget and audience. Boost it on Facebook in one tap; you pay Facebook directly."
       />
       <AdsClient initial={recommendations} />
     </div>

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { createTenant } from "@/lib/authService";
-import { setSessionCookie } from "@/lib/session";
+import { createAccount } from "@/lib/authService";
 
+// Creates the account but does NOT auto-login — the client sends the user to
+// /login to sign in (classic register → login flow).
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -9,8 +10,7 @@ export async function POST(req: Request) {
     if (!username || !password) {
       return NextResponse.json({ error: "Username and password are required." }, { status: 400 });
     }
-    const tenant = await createTenant({ name, business, username, email, password, type, city });
-    setSessionCookie(tenant.id);
+    await createAccount({ name, business, username, email, password, type, city });
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 });

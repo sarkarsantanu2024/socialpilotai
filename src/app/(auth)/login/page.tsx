@@ -8,7 +8,8 @@ import { Eye, EyeOff, Loader2 } from "lucide-react";
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get("next") || "/dashboard";
+  const urlNext = params.get("next"); // set when middleware redirected a deep link
+  const registered = params.get("registered") === "1";
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -32,7 +33,9 @@ function LoginForm() {
         setLoading(false);
         return;
       }
-      router.push(next);
+      // A deep-link (middleware ?next=) wins; otherwise use the server's
+      // onboarding-aware destination.
+      router.push(urlNext || data.next || "/dashboard");
       router.refresh();
     } catch {
       setError("Something went wrong. Please try again.");
@@ -44,6 +47,12 @@ function LoginForm() {
     <>
       <h1 className="text-2xl font-bold tracking-tight">Welcome back</h1>
       <p className="mt-1 text-sm text-ink-500">Log in to your SocialPilot AI workspace.</p>
+
+      {registered && (
+        <p className="mt-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
+          ✓ Account created — please log in to continue.
+        </p>
+      )}
 
       <form onSubmit={submit} className="mt-6 space-y-4">
         <div>

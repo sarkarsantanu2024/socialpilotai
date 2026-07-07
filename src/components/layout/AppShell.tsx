@@ -13,24 +13,33 @@ import {
   Settings,
   LogOut,
   CheckCheck,
-  Sparkles,
-  CalendarClock,
-  TrendingUp,
   Users,
+  Building2,
+  Inbox,
+  Send,
+  AlertTriangle,
+  CreditCard,
 } from "lucide-react";
 import { navItems } from "./nav";
 import { cn } from "@/lib/utils";
 import { DEMO_MODE } from "@/lib/config";
 import { useBrand } from "@/lib/brand/store";
+import { CenterSwitcher } from "./CenterSwitcher";
 
-type Notif = { id: string; icon: typeof Bell; title: string; time: string; unread: boolean };
+// Real notifications, fetched from /api/notifications (scoped to the active center).
+type Notif = { id: string; title: string; body?: string | null; type: string; href?: string | null; read: boolean; createdAt: string };
 
-const NOTIFICATIONS: Notif[] = [
-  { id: "n1", icon: Sparkles, title: "3 new AI variations are ready in Content Studio", time: "2m ago", unread: true },
-  { id: "n2", icon: CalendarClock, title: "Your “Free demo class” post publishes tomorrow at 9 AM", time: "1h ago", unread: true },
-  { id: "n3", icon: TrendingUp, title: "Topper spotlight reel crossed 10k reach", time: "5h ago", unread: false },
-  { id: "n4", icon: Users, title: "2 new leads captured from your last campaign", time: "Yesterday", unread: false },
-];
+const NOTIF_ICON: Record<string, typeof Bell> = {
+  approval: Inbox, publish: Send, lead: Users, warning: AlertTriangle, info: Bell,
+};
+
+function relTime(iso: string): string {
+  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+}
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -38,8 +47,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { brand } = useBrand();
   const [open, setOpen] = useState(false);
   const [menu, setMenu] = useState<"none" | "notif" | "profile">("none");
-  const [notifs, setNotifs] = useState(NOTIFICATIONS);
+  const [notifs, setNotifs] = useState<Notif[]>([]);
   const [fb, setFb] = useState<{ connected: boolean; pages: { id: string; name: string }[]; activePageId: string | null } | null>(null);
+  const [canManageOrg, setCanManageOrg] = useState(false);
   const headerRef = useRef<HTMLDivElement>(null);
 
   // When a real Facebook Page is connected, the header shows IT (not the demo profile).
@@ -48,10 +58,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       .then((r) => r.json())
       .then(setFb)
       .catch(() => {});
+    // Show the Organization console only to HO owners / super-admins.
+    fetch("/api/centers", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => setCanManageOrg(!!d?.isSuperadmin || (d?.centers ?? []).some((c: { role?: string }) => c.role === "owner")))
+      .catch(() => {});
+    // Real notifications for the active center.
+    fetch("/api/notifications", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => setNotifs(d?.notifications ?? []))
+      .catch(() => {});
   }, []);
   const connectedName = fb?.connected ? fb.pages.find((p) => p.id === fb.activePageId)?.name ?? null : null;
 
-  const unreadCount = notifs.filter((n) => n.unread).length;
+  async function markAllRead() {
+    setNotifs((ns) => ns.map((n) => ({ ...n, read: true })));
+    await fetch("/api/notifications", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).catch(() => {});
+  }
+
+  const unreadCount = notifs.filter((n) => !n.read).length;
   const bizName = connectedName ?? brand.profile.name;
   const bizSub = connectedName ? "Facebook Page" : brand.profile.city;
   const initials =
@@ -123,7 +148,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="flex flex-col gap-0.5 overflow-y-auto p-3" style={{ maxHeight: "calc(100vh - 4rem)" }}>
-          {navItems.map((item) => {
+          {(canManageOrg
+            ? [...navItems.slice(0, -1), { href: "/organization", label: "Organization", icon: Building2 }, { href: "/billing", label: "Billing", icon: CreditCard }, navItems[navItems.length - 1]]
+            : navItems
+          ).map((item) => {
             const active = pathname === item.href;
             const Icon = item.icon;
             return (
@@ -166,6 +194,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Menu className="h-5 w-5" />
           </button>
 
+          {/* Center switcher — only appears for users with >1 accessible center */}
+          <CenterSwitcher />
+
           <div className="relative hidden flex-1 sm:block sm:max-w-md">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
             <input
@@ -202,7 +233,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <p className="text-sm font-semibold">Notifications</p>
                     {unreadCount > 0 && (
                       <button
-                        onClick={() => setNotifs((ns) => ns.map((n) => ({ ...n, unread: false })))}
+                        onClick={markAllRead}
                         className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700"
                       >
                         <CheckCheck className="h-3.5 w-3.5" /> Mark all read
@@ -210,25 +241,29 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     )}
                   </div>
                   <div className="max-h-80 overflow-y-auto">
+                    {notifs.length === 0 && (
+                      <p className="px-4 py-8 text-center text-sm text-ink-400">You&apos;re all caught up.</p>
+                    )}
                     {notifs.map((n) => {
-                      const Icon = n.icon;
-                      return (
-                        <div
-                          key={n.id}
-                          className={cn(
-                            "flex gap-3 px-4 py-3 transition hover:bg-ink-50",
-                            n.unread && "bg-brand-50/50"
-                          )}
-                        >
+                      const Icon = NOTIF_ICON[n.type] ?? Bell;
+                      const inner = (
+                        <>
                           <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600">
                             <Icon className="h-4 w-4" />
                           </span>
-                          <div className="min-w-0">
-                            <p className="text-sm leading-snug text-ink-700">{n.title}</p>
-                            <p className="mt-0.5 text-[11px] text-ink-400">{n.time}</p>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium leading-snug text-ink-800">{n.title}</p>
+                            {n.body && <p className="mt-0.5 line-clamp-2 text-xs text-ink-500">{n.body}</p>}
+                            <p className="mt-0.5 text-[11px] text-ink-400">{relTime(n.createdAt)}</p>
                           </div>
-                          {n.unread && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand-500" />}
-                        </div>
+                          {!n.read && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand-500" />}
+                        </>
+                      );
+                      const cls = cn("flex gap-3 px-4 py-3 transition hover:bg-ink-50", !n.read && "bg-brand-50/50");
+                      return n.href ? (
+                        <Link key={n.id} href={n.href} onClick={() => setMenu("none")} className={cls}>{inner}</Link>
+                      ) : (
+                        <div key={n.id} className={cls}>{inner}</div>
                       );
                     })}
                   </div>

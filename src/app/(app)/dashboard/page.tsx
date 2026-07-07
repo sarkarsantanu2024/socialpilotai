@@ -9,50 +9,51 @@ import { BarMini } from "@/components/charts/BarMini";
 import { getClientData } from "@/lib/clientData";
 import { generateReport } from "@/lib/ai";
 import { compact, fmtDate } from "@/lib/utils";
+import { weeklyTrend, bestTimes as calcBestTimes, growthPct } from "@/lib/insights";
+import { BoostButton } from "@/components/ui/BoostButton";
 
-const trend = [
-  { label: "Wk 1", reach: 6200, engagement: 480 },
-  { label: "Wk 2", reach: 8900, engagement: 720 },
-  { label: "Wk 3", reach: 11200, engagement: 1180 },
-  { label: "Wk 4", reach: 15600, engagement: 1640 },
-  { label: "Wk 5", reach: 14280, engagement: 1980 },
-  { label: "Now", reach: 17400, engagement: 2310 },
-];
-
-const bestTimes = [
-  { label: "6am", value: 12 },
-  { label: "9am", value: 34 },
-  { label: "12pm", value: 28 },
-  { label: "3pm", value: 22 },
-  { label: "6pm", value: 58 },
-  { label: "9pm", value: 41 },
-];
+function EmptyChart({ text }: { text: string }) {
+  return (
+    <div className="grid h-[220px] place-items-center rounded-xl border border-dashed border-ink-200 px-6 text-center text-sm text-ink-400">
+      {text}
+    </div>
+  );
+}
 
 export default async function Dashboard() {
-  const { posts, analytics, leads, campaigns, live, page } = await getClientData();
+  const { posts, analytics, leads, live, page } = await getClientData();
   const totalReach = analytics.reduce((s, a) => s + a.reach, 0);
   const avgEng =
     analytics.reduce((s, a) => s + a.engagementRate, 0) / (analytics.length || 1);
 
+  // Real insight series derived from this center's own posts — empty until there
+  // is enough data (no dummy numbers).
+  const trend = weeklyTrend(posts, analytics);
+  const { data: bestTimes, highlight: bestTimeIdx } = calcBestTimes(posts, analytics);
+  const hasData = analytics.length > 0;
+  const growth = growthPct(trend);
+
   const topAnalytics = [...analytics].sort((a, b) => b.engagementRate - a.engagementRate)[0];
   const topPost = posts.find((p) => p.id === topAnalytics?.postId) ?? posts[0];
-  const report = await generateReport({
-    topPost: topPost?.title ?? "your recent posts",
-    reach: totalReach,
-    engagementRate: Number(avgEng.toFixed(1)),
-    growth: 18,
-  });
+  const report = hasData
+    ? await generateReport({
+        topPost: topPost?.title ?? "your recent posts",
+        reach: totalReach,
+        engagementRate: Number(avgEng.toFixed(1)),
+        growth,
+      })
+    : null;
 
   return (
     <div className="space-y-6">
       <Greeting liveName={live ? page.name : null} />
 
-      {/* Stats */}
+      {/* Stats — real values only; deltas shown only when we can compute them. */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <StatCard label="Page reach (30d)" value={compact(totalReach)} delta={{ value: "18% vs last month", up: true }} icon={<Eye className="h-5 w-5" />} />
-        <StatCard label="Avg engagement" value={`${avgEng.toFixed(1)}%`} delta={{ value: "2.1 pts", up: true }} icon={<Heart className="h-5 w-5" />} />
-        <StatCard label="Leads captured" value={String(leads.length)} delta={{ value: "Sandbox", up: true }} icon={<Users className="h-5 w-5" />} />
-        <StatCard label="Active campaigns" value={String(campaigns.filter((c) => c.status !== "COMPLETED").length)} delta={{ value: "Paused — safe", up: true }} icon={<Megaphone className="h-5 w-5" />} />
+        <StatCard label="Page reach (30d)" value={compact(totalReach)} delta={hasData && growth ? { value: `${Math.abs(growth)}%`, up: growth >= 0 } : undefined} icon={<Eye className="h-5 w-5" />} />
+        <StatCard label="Avg engagement" value={`${avgEng.toFixed(1)}%`} icon={<Heart className="h-5 w-5" />} />
+        <StatCard label="Leads captured" value={String(leads.length)} icon={<Users className="h-5 w-5" />} />
+        <StatCard label="Posts published" value={String(posts.filter((p) => p.status === "published").length)} icon={<Megaphone className="h-5 w-5" />} />
       </div>
 
       {/* Trend + best times */}
@@ -64,17 +65,27 @@ export default async function Dashboard() {
               View analytics
             </Link>
           </div>
-          <TrendChart data={trend} />
+          {trend.length ? (
+            <TrendChart data={trend} />
+          ) : (
+            <EmptyChart text="Publish posts and connect your Facebook Page to see your reach & engagement trend here." />
+          )}
         </div>
         <div className="card p-5">
           <div className="mb-2 flex items-center gap-2">
             <Clock className="h-4 w-4 text-brand-500" />
             <h2 className="font-semibold">Best times to post</h2>
           </div>
-          <BarMini data={bestTimes} highlight={4} />
-          <p className="mt-2 text-sm text-ink-500">
-            Your audience is most active at <b>6 PM</b>. Schedule reels then.
-          </p>
+          {bestTimes.length ? (
+            <>
+              <BarMini data={bestTimes} highlight={bestTimeIdx} />
+              <p className="mt-2 text-sm text-ink-500">
+                Your posts perform best around <b>{bestTimes[bestTimeIdx]?.label}</b>.
+              </p>
+            </>
+          ) : (
+            <EmptyChart text="Once you publish a few posts, your best posting times will appear here." />
+          )}
         </div>
       </div>
 
@@ -88,22 +99,43 @@ export default async function Dashboard() {
             <h2 className="font-semibold">AI performance report</h2>
             <Badge tone="violet">Gemini</Badge>
           </div>
-          <p className="text-sm leading-relaxed text-ink-700">{report}</p>
+          <p className="text-sm leading-relaxed text-ink-700">
+            {report ?? "Your AI performance report appears here once you've published posts and have engagement data to summarise."}
+          </p>
         </div>
 
-        <div className="card flex flex-col justify-between bg-gradient-to-br from-brand-600 to-brand-700 p-5 text-white">
-          <div>
-            <Badge className="bg-white/15 text-white">Recommended next step</Badge>
-            <h3 className="mt-3 text-lg font-bold">Promote your top reel</h3>
-            <p className="mt-1 text-sm text-brand-50">
-              "{topPost?.title ?? "Your top post"}" is outperforming everything. AI suggests a
-              7-day lead campaign at ₹250/day.
-            </p>
+        {topPost && hasData ? (
+          <div className="card flex flex-col justify-between bg-gradient-to-br from-brand-600 to-brand-700 p-5 text-white">
+            <div>
+              <Badge className="bg-white/15 text-white">Recommended next step</Badge>
+              <h3 className="mt-3 text-lg font-bold">Promote your top post</h3>
+              <p className="mt-1 text-sm text-brand-50">
+                &ldquo;{topPost.title}&rdquo; is your best performer. AI suggests a 7-day lead
+                campaign at ₹250/day.
+              </p>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <BoostButton fbPostId={topPost.fbPostId} title={topPost.title} budget={250} days={7} />
+              <Link href="/ads" className="btn bg-white/15 text-white hover:bg-white/25">
+                Review <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
           </div>
-          <Link href="/ads" className="btn mt-4 bg-white text-brand-700 hover:bg-brand-50">
-            Review recommendation <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
+        ) : (
+          <div className="card flex flex-col justify-between bg-gradient-to-br from-brand-600 to-brand-700 p-5 text-white">
+            <div>
+              <Badge className="bg-white/15 text-white">Get started</Badge>
+              <h3 className="mt-3 text-lg font-bold">Create your first post</h3>
+              <p className="mt-1 text-sm text-brand-50">
+                Generate a post in your brand voice, publish it to your Page, and your insights &amp;
+                recommendations will start appearing here.
+              </p>
+            </div>
+            <Link href="/studio" className="btn mt-4 bg-white text-brand-700 hover:bg-brand-50">
+              Open AI Content Studio <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Recent posts */}
