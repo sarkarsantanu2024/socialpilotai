@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SettingsClient } from "./SettingsClient";
+import { AiStatus } from "@/components/ui/AiStatus";
 import { requireTenant } from "@/lib/currentTenant";
 
 export default async function SettingsPage() {
@@ -23,6 +24,7 @@ export default async function SettingsPage() {
           email: tenant.email,
         }}
       />
+      <AiStatus />
     </div>
   );
 }

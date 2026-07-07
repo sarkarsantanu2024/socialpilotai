@@ -181,6 +181,9 @@ model ConnectedPage {
   pageToken String // ENCRYPTED
   connected Boolean @default(true)
   isActive  Boolean @default(false) // the active Page for this center
+  // Instagram Business account linked to this Page (for cross-posting to IG).
+  igUserId   String?
+  igUsername String?
 }
 
 // Connection-level data for a center's Facebook link (one per center). Holds

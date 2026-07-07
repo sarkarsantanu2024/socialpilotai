@@ -56,18 +56,20 @@ export async function GET(req: Request) {
     // c) who am I + the Pages I manage (with per-Page tokens that don't expire)
     const [meRes, pagesRes] = await Promise.all([
       fetch(`${GRAPH}/me?fields=name&access_token=${userToken}`, { cache: "no-store" }),
-      fetch(`${GRAPH}/me/accounts?fields=id,name,access_token,category,picture{url},location{city}&access_token=${userToken}`, { cache: "no-store" }),
+      fetch(`${GRAPH}/me/accounts?fields=id,name,access_token,category,picture{url},location{city},instagram_business_account{id,username}&access_token=${userToken}`, { cache: "no-store" }),
     ]);
     const me = await meRes.json();
     const pagesJson = await pagesRes.json();
     const pages: FbPageInput[] = (pagesJson.data ?? []).map(
-      (p: { id: string; name: string; access_token: string; category?: string; picture?: { data?: { url?: string } }; location?: { city?: string } }) => ({
+      (p: { id: string; name: string; access_token: string; category?: string; picture?: { data?: { url?: string } }; location?: { city?: string }; instagram_business_account?: { id?: string; username?: string } }) => ({
         id: p.id,
         name: p.name,
         token: p.access_token,
         category: p.category,
         picture: p.picture?.data?.url,
         city: p.location?.city,
+        igUserId: p.instagram_business_account?.id,
+        igUsername: p.instagram_business_account?.username,
       })
     );
 

@@ -55,12 +55,24 @@ export async function publishPost(opts: {
     // Pages Experience): (1) upload the photo UNPUBLISHED, (2) attach it to a
     // /feed post via attached_media. This makes app-published images show up in
     // the page feed exactly like a native post.
-    const upParams = new URLSearchParams({
-      access_token: opts.pageToken,
-      url: opts.assetUrl,
-      published: "false",
-    });
-    const upRes = await fetch(`${base}/${opts.pageId}/photos`, { method: "POST", body: upParams });
+    //
+    // A public http(s) URL is passed by reference (`url`); an AI-generated
+    // data: URL is uploaded as raw bytes (`source`, multipart) so we never need
+    // external image hosting.
+    let upRes: Response;
+    if (opts.assetUrl.startsWith("data:")) {
+      const comma = opts.assetUrl.indexOf(",");
+      const mime = opts.assetUrl.slice(5, opts.assetUrl.indexOf(";")) || "image/png";
+      const bytes = Buffer.from(opts.assetUrl.slice(comma + 1), "base64");
+      const form = new FormData();
+      form.append("access_token", opts.pageToken);
+      form.append("published", "false");
+      form.append("source", new Blob([bytes], { type: mime }), "image.png");
+      upRes = await fetch(`${base}/${opts.pageId}/photos`, { method: "POST", body: form });
+    } else {
+      const upParams = new URLSearchParams({ access_token: opts.pageToken, url: opts.assetUrl, published: "false" });
+      upRes = await fetch(`${base}/${opts.pageId}/photos`, { method: "POST", body: upParams });
+    }
     const upData = await upRes.json();
     if (!upRes.ok || upData.error) {
       throw new Error(upData.error?.message ?? "Facebook photo upload failed");
@@ -82,6 +94,48 @@ export async function publishPost(opts: {
     permalink: `https://www.facebook.com/${fbPostId}`,
     scheduled,
   };
+}
+
+// Publish an image post to the Instagram Business account linked to the Page.
+// IG's Content Publishing API is a 2-step: create a media container from a
+// PUBLIC image_url, then publish it. NOTE: IG requires a public http(s) image
+// URL — it does NOT accept raw bytes or data: URLs (unlike Facebook photos).
+export async function publishInstagram(opts: {
+  igUserId: string;
+  imageUrl: string;
+  caption: string;
+  pageToken: string;
+}): Promise<{ mediaId: string; permalink: string }> {
+  const base = `https://graph.facebook.com/${GRAPH_VERSION}`;
+  if (!/^https?:\/\//.test(opts.imageUrl)) {
+    throw new Error("Instagram needs a public image URL (AI/uploaded images can't be cross-posted to Instagram yet).");
+  }
+
+  // 1) Create the media container.
+  const createRes = await fetch(`${base}/${opts.igUserId}/media`, {
+    method: "POST",
+    body: new URLSearchParams({ image_url: opts.imageUrl, caption: opts.caption, access_token: opts.pageToken }),
+  });
+  const createData = await createRes.json();
+  if (!createRes.ok || createData.error) throw new Error(createData.error?.message ?? "Instagram media creation failed");
+
+  // 2) Publish the container.
+  const pubRes = await fetch(`${base}/${opts.igUserId}/media_publish`, {
+    method: "POST",
+    body: new URLSearchParams({ creation_id: createData.id, access_token: opts.pageToken }),
+  });
+  const pubData = await pubRes.json();
+  if (!pubRes.ok || pubData.error) throw new Error(pubData.error?.message ?? "Instagram publish failed");
+
+  // Best-effort permalink lookup.
+  let permalink = "https://www.instagram.com/";
+  try {
+    const permRes = await fetch(`${base}/${pubData.id}?fields=permalink&access_token=${encodeURIComponent(opts.pageToken)}`, { cache: "no-store" });
+    const perm = await permRes.json();
+    if (perm.permalink) permalink = perm.permalink;
+  } catch { /* ignore */ }
+
+  return { mediaId: pubData.id, permalink };
 }
 
 // ---- Organic: read real Page content & insights ------------------

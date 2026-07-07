@@ -34,6 +34,8 @@ export async function GET() {
     pages: conn?.pages.map((p) => ({ id: p.id, name: p.name })) ?? [],
     adsConnected: !!conn?.adAccountId,
     adAccountId: conn?.adAccountId ?? null,
+    // Instagram Business account linked to the active Page (for cross-posting).
+    instagram: active?.igUserId ? { connected: true, username: active.igUsername ?? null } : { connected: false },
     // Active page identity — drives the app's brand (name, logo, category).
     activePage: active
       ? { id: active.id, name: active.name, category: active.category ?? null, picture: active.picture ?? null, city: active.city ?? null }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { publishPost, GRAPH_VERSION } from "@/lib/meta";
+import { publishPost, publishInstagram, GRAPH_VERSION } from "@/lib/meta";
 import { getActivePage } from "@/lib/fb/connection";
 import { getCurrentTenant } from "@/lib/currentTenant";
 import { notify } from "@/lib/notify";
@@ -44,7 +44,9 @@ export async function POST(req: Request) {
         caption,
         hashtags: Array.isArray(body.hashtags) ? body.hashtags : [],
         music: body.music ?? null,
-        assetUrl: body.assetUrl ?? null,
+        // Never store base64 data-URLs in the DB (the image is on Facebook now;
+        // clientData overlays the real FB image). Keep only public http(s) URLs.
+        assetUrl: body.assetUrl && /^https?:\/\//.test(body.assetUrl) ? body.assetUrl : null,
         scheduledAt: scheduled ? new Date(body.scheduledAt) : null,
         publishedAt: scheduled ? null : new Date(),
         fbPostId: result.fbPostId ?? null,
@@ -63,7 +65,25 @@ export async function POST(req: Request) {
       });
     }
 
-    return NextResponse.json({ ok: true, ...result, live: !!page, pageName: page?.name ?? null });
+    // Optional cross-post to Instagram (immediate publishes only; IG needs a
+    // PUBLIC image URL — stock images work, AI/uploaded data-URLs don't).
+    let instagram: { ok: boolean; permalink?: string; error?: string } | undefined;
+    if (body.instagram && !scheduled) {
+      if (!page.igUserId) {
+        instagram = { ok: false, error: "No Instagram account is linked to this Page." };
+      } else if (!(body.assetUrl && /^https?:\/\//.test(body.assetUrl))) {
+        instagram = { ok: false, error: "Instagram needs a public image (a stock image works; AI/uploaded images can't be cross-posted yet)." };
+      } else {
+        try {
+          const ig = await publishInstagram({ igUserId: page.igUserId, imageUrl: body.assetUrl, caption: body.caption ?? "", pageToken: page.token });
+          instagram = { ok: true, permalink: ig.permalink };
+        } catch (e) {
+          instagram = { ok: false, error: (e as Error).message };
+        }
+      }
+    }
+
+    return NextResponse.json({ ok: true, ...result, live: !!page, pageName: page?.name ?? null, instagram });
   } catch (e) {
     // Surface the real Graph API error to the UI instead of a silent 500.
     const error = (e as Error).message;
