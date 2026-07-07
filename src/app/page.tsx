@@ -159,6 +159,8 @@ export default function Landing() {
 
       <footer className="border-t border-ink-100 py-6 text-center text-sm text-ink-400">
         © {new Date().getFullYear()} SocialPilot AI · Facebook marketing automation for small businesses
+        <span className="mx-2">·</span>
+        <Link href="/privacy" className="hover:text-ink-600 hover:underline">Privacy Policy</Link>
       </footer>
     </div>
   );

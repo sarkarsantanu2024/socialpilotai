@@ -75,6 +75,12 @@ export default async function AnalyticsPage() {
         </div>
       )}
 
+      <p className="px-1 text-xs text-ink-400">
+        Engagement metrics (reactions, comments, shares) are always available. <b>Reach, impressions
+        and link clicks</b> need Facebook&apos;s <code className="rounded bg-ink-100 px-1">read_insights</code>{" "}
+        permission, granted after Meta App Review — until then those tiles may show 0.
+      </p>
+
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="card p-5 lg:col-span-2">
           <h2 className="mb-2 font-semibold">Reach &amp; engagement</h2>

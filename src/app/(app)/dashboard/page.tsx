@@ -11,6 +11,8 @@ import { generateReport } from "@/lib/ai";
 import { compact, fmtDate } from "@/lib/utils";
 import { weeklyTrend, bestTimes as calcBestTimes, growthPct } from "@/lib/insights";
 import { BoostButton } from "@/components/ui/BoostButton";
+import { upcomingFestivals, daysUntil } from "@/lib/festivals";
+import { UpcomingFestival } from "./UpcomingFestival";
 
 function EmptyChart({ text }: { text: string }) {
   return (
@@ -32,6 +34,9 @@ export default async function Dashboard() {
   const { data: bestTimes, highlight: bestTimeIdx } = calcBestTimes(posts, analytics);
   const hasData = analytics.length > 0;
   const growth = growthPct(trend);
+
+  // Proactively surface the next festival within ~6 weeks (festival auto-content).
+  const nextFestival = upcomingFestivals(new Date(), 45, 1)[0] ?? null;
 
   const topAnalytics = [...analytics].sort((a, b) => b.engagementRate - a.engagementRate)[0];
   const topPost = posts.find((p) => p.id === topAnalytics?.postId) ?? posts[0];
@@ -55,6 +60,11 @@ export default async function Dashboard() {
         <StatCard label="Leads captured" value={String(leads.length)} icon={<Users className="h-5 w-5" />} />
         <StatCard label="Posts published" value={String(posts.filter((p) => p.status === "published").length)} icon={<Megaphone className="h-5 w-5" />} />
       </div>
+
+      {/* Festival auto-content nudge */}
+      {nextFestival && (
+        <UpcomingFestival festival={nextFestival} daysAway={daysUntil(nextFestival.date)} />
+      )}
 
       {/* Trend + best times */}
       <div className="grid gap-4 lg:grid-cols-3">

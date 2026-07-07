@@ -51,3 +51,13 @@ export async function PATCH(req: Request) {
   await prisma.lead.updateMany({ where: { id: b.id, tenantId: tenant.id }, data });
   return NextResponse.json({ ok: true });
 }
+
+// DPDP right to erasure — delete a lead's personal data.
+export async function DELETE(req: Request) {
+  const tenant = await getCurrentTenant();
+  if (!tenant) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  const id = new URL(req.url).searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "Missing id." }, { status: 400 });
+  await prisma.lead.deleteMany({ where: { id, tenantId: tenant.id } });
+  return NextResponse.json({ ok: true });
+}

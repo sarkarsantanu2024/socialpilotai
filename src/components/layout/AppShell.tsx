@@ -48,7 +48,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [menu, setMenu] = useState<"none" | "notif" | "profile">("none");
   const [notifs, setNotifs] = useState<Notif[]>([]);
-  const [fb, setFb] = useState<{ connected: boolean; pages: { id: string; name: string }[]; activePageId: string | null } | null>(null);
+  const [fb, setFb] = useState<{ connected: boolean; needsReconnect?: boolean; pages: { id: string; name: string }[]; activePageId: string | null } | null>(null);
   const [canManageOrg, setCanManageOrg] = useState(false);
   const headerRef = useRef<HTMLDivElement>(null);
 
@@ -322,6 +322,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </header>
+
+        {/* Facebook token expired → prompt reconnect */}
+        {fb?.needsReconnect && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800 sm:px-6">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span className="min-w-0 flex-1">Your Facebook connection has expired — publishing and insights are paused until you reconnect.</span>
+            <a href="/api/auth/facebook" className="btn-primary shrink-0 px-3 py-1.5 text-xs">Reconnect Facebook</a>
+          </div>
+        )}
 
         <main className="mx-auto w-full max-w-7xl flex-1 p-4 sm:p-6 lg:p-8">
           <div className="animate-fade-up">{children}</div>

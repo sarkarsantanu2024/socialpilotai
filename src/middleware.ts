@@ -8,7 +8,7 @@ import type { NextRequest } from "next/server";
 const SESSION_COOKIE = "sp_session";
 
 // Public routes anyone can reach without a session.
-const PUBLIC_PATHS = ["/", "/login", "/signup"];
+const PUBLIC_PATHS = ["/", "/login", "/signup", "/privacy"];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

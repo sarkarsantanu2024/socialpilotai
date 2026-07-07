@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { UserPlus, Phone, Mail, MessageCircle, FlaskConical, Plus } from "lucide-react";
+import { UserPlus, Phone, Mail, MessageCircle, FlaskConical, Plus, Download, Trash2 } from "lucide-react";
 import { StatCard } from "@/components/ui/Stat";
 import { cn, fmtDateTime } from "@/lib/utils";
 import type { Lead } from "@/lib/types";
@@ -54,6 +54,23 @@ export function LeadsClient({ initial }: { initial: Lead[] }) {
     await fetch("/api/leads", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, ...patch }) }).catch(() => {});
   }
 
+  async function remove(id: string) {
+    setLeads((prev) => prev.filter((l) => l.id !== id));
+    await fetch(`/api/leads?id=${encodeURIComponent(id)}`, { method: "DELETE" }).catch(() => {});
+  }
+
+  // DPDP data portability — export all leads as CSV (client-side, no server round-trip).
+  function exportCsv() {
+    const esc = (v: string) => `"${(v ?? "").replace(/"/g, '""')}"`;
+    const rows = [["Name", "Phone", "Email", "Interest", "Status", "Notes", "Captured"]];
+    for (const l of leads) rows.push([l.name, l.phone, l.email, l.interest, l.status ?? "new", l.notes ?? "", l.createdAt]);
+    const csv = rows.map((r) => r.map(esc).join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = "leads.csv"; a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="space-y-4">
       {/* Stats — all real, derived from your own pipeline */}
@@ -70,6 +87,7 @@ export function LeadsClient({ initial }: { initial: Lead[] }) {
         <div className="flex gap-2">
           <button onClick={() => setAdding((a) => !a)} className="btn-primary text-sm"><Plus className="h-4 w-4" /> Add lead</button>
           <button onClick={() => addLead(true)} disabled={busy} className="btn-ghost text-sm"><FlaskConical className="h-4 w-4" /> Simulate</button>
+          {leads.length > 0 && <button onClick={exportCsv} className="btn-ghost text-sm"><Download className="h-4 w-4" /> Export CSV</button>}
         </div>
       </div>
 
@@ -128,6 +146,7 @@ export function LeadsClient({ initial }: { initial: Lead[] }) {
                 <div className="flex gap-2">
                   {l.phone && <a href={waLink(l.phone, l.name)} target="_blank" rel="noopener noreferrer" className="btn bg-[#25D366] px-2.5 py-1.5 text-xs text-white hover:opacity-90"><MessageCircle className="h-3.5 w-3.5" /> WhatsApp</a>}
                   {l.phone && <a href={`tel:${l.phone}`} className="btn-ghost px-2.5 py-1.5 text-xs"><Phone className="h-3.5 w-3.5" /> Call</a>}
+                  <button onClick={() => remove(l.id)} className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-50" title="Delete lead (erase data)"><Trash2 className="h-3.5 w-3.5" /></button>
                 </div>
               </div>
             </div>
