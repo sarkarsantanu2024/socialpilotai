@@ -192,6 +192,55 @@ export async function generateImage(input: {
   }
 }
 
+// Festival auto-content: a warm, brand-voice greeting post for an upcoming
+// festival, written in the business's own language (vernacular). Falls back to a
+// simple template when Gemini is unavailable.
+export async function generateFestivalPost(input: {
+  festival: { name: string; blurb?: string };
+  profile: BusinessProfile;
+}): Promise<{ title: string; caption: string; hashtags: string[] }> {
+  const { festival, profile } = input;
+  const tag = festival.name.replace(/[^a-zA-Z]/g, "").slice(0, 20) || "Festival";
+  const fallback = {
+    title: `${festival.name} greetings`,
+    caption: `🎉 Happy ${festival.name} from ${profile.name}! Wishing all our families in ${profile.city} joy, warmth and success. Thank you for being part of our journey. ✨`,
+    hashtags: [`#${tag}`, "#Festival", "#Wishes", `#${(profile.city || "Local").replace(/\s/g, "")}`, "#Celebration"],
+  };
+  if (!hasGemini()) {
+    await delay(500);
+    return fallback;
+  }
+  try {
+    const sys = `Write a warm Facebook FESTIVAL GREETING post for this business.
+
+Business: ${profile.name}
+Type: ${profile.type}
+City: ${profile.city}
+Brand tone: ${profile.tone}
+Language: ${profile.language} (write naturally in this language, not translated-sounding)
+
+Festival: ${festival.name}${festival.blurb ? ` — ${festival.blurb}` : ""}
+
+Return ONLY a JSON object with:
+- "caption": a warm 2-3 sentence greeting with 1-2 relevant emojis, mentioning the business naturally
+- "hashtags": array of exactly 5 relevant hashtags (each starting with #, no spaces)
+No markdown, no commentary — just the JSON object.`;
+    const raw = await geminiText(sys, true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const parsed: any = JSON.parse(raw);
+    return {
+      title: `${festival.name} greetings`,
+      caption: String(parsed.caption ?? fallback.caption),
+      hashtags: Array.isArray(parsed.hashtags)
+        ? parsed.hashtags.map((h: string) => (h.startsWith("#") ? h : `#${h}`)).slice(0, 5)
+        : fallback.hashtags,
+    };
+  } catch (e) {
+    console.warn("[ai] generateFestivalPost failed, using fallback:", (e as Error).message);
+    return fallback;
+  }
+}
+
 export async function generateReport(summary: {
   topPost: string;
   reach: number;

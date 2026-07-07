@@ -18,11 +18,13 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
+  const [consent, setConsent] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (!consent) { setError("Please accept the Privacy Policy to continue."); return; }
     setError("");
     setLoading(true);
     try {
@@ -106,6 +108,11 @@ export default function SignupPage() {
             </button>
           </div>
         </div>
+
+        <label className="flex items-start gap-2 text-xs text-ink-500">
+          <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5" />
+          <span>I agree to the <a href="/privacy" target="_blank" className="font-medium text-brand-600 hover:underline">Privacy Policy</a>, and I understand my data (and any leads I collect) is handled per the India DPDP Act.</span>
+        </label>
 
         {error && <p className="text-sm font-medium text-rose-600">{error}</p>}
 

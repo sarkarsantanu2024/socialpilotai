@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { verifyLogin } from "@/lib/authService";
 import { setSession } from "@/lib/session";
-import { firstAccessibleCenterId } from "@/lib/access";
+import { firstAccessibleCenterId, isSuperadmin } from "@/lib/access";
 import { prisma } from "@/lib/db";
 
 export async function POST(req: Request) {
@@ -14,14 +14,23 @@ export async function POST(req: Request) {
     if (!user) {
       return NextResponse.json({ error: "Invalid username or password." }, { status: 401 });
     }
+
+    // Super-admins have no center of their own → straight to the platform console.
+    // Never send them into a customer center's setup wizard.
+    if (isSuperadmin(user)) {
+      setSession(user.id, null);
+      return NextResponse.json({ ok: true, next: "/admin" });
+    }
+
     // Land the session on the user's first accessible center (if any).
     const centerId = await firstAccessibleCenterId(user);
     setSession(user.id, centerId);
 
-    // First-time users land on the setup wizard; everyone else on the dashboard.
-    // (Super-admins have no center → dashboard → redirected to /admin.)
+    // Only send the OWNER of a fresh, un-onboarded center to the setup wizard —
+    // not managers of already-set-up centers.
     let next = "/dashboard";
-    if (centerId) {
+    const isOwner = user.memberships.some((m) => m.role === "owner");
+    if (centerId && isOwner) {
       const t = await prisma.tenant.findUnique({ where: { id: centerId }, select: { onboarded: true } });
       if (t && !t.onboarded) next = "/onboarding";
     }
