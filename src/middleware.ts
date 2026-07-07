@@ -14,7 +14,8 @@ export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const token = req.cookies.get(SESSION_COOKIE)?.value;
   const authed = !!token && token.includes(".");
-  const isPublic = PUBLIC_PATHS.includes(pathname);
+  // Invite links are public — the recipient has no account yet.
+  const isPublic = PUBLIC_PATHS.includes(pathname) || pathname.startsWith("/invite/");
 
   // Gate the app routes behind login.
   if (!authed && !isPublic) {

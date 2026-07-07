@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { FB_GRAPH_VERSION, fbAppConfigured, fbRedirectUri } from "@/lib/config";
-import { setConnection, type FbPage } from "@/lib/fb/session";
+import { persistConnection, type FbPageInput } from "@/lib/fb/connection";
 import { rememberPageToken } from "@/lib/fb/store";
 import { getSessionTenantId } from "@/lib/session";
-import { persistPages } from "@/lib/fb/pages";
 import { prisma } from "@/lib/db";
 
 const GRAPH = `https://graph.facebook.com/${FB_GRAPH_VERSION}`;
@@ -61,7 +60,7 @@ export async function GET(req: Request) {
     ]);
     const me = await meRes.json();
     const pagesJson = await pagesRes.json();
-    const pages: FbPage[] = (pagesJson.data ?? []).map(
+    const pages: FbPageInput[] = (pagesJson.data ?? []).map(
       (p: { id: string; name: string; access_token: string; category?: string; picture?: { data?: { url?: string } }; location?: { city?: string } }) => ({
         id: p.id,
         name: p.name,
@@ -97,12 +96,12 @@ export async function GET(req: Request) {
       }
     }
 
-    setConnection({ userName: me.name, activePageId: pages[0].id, pages, userToken, adAccountId });
-
-    // Persist pages (encrypted tokens) so the webhook + cron can act without a
-    // session, and seed brand identity (logo/city) from the Page — best effort.
+    // Persist the connection (encrypted tokens) to THIS center in the DB — so
+    // each center is isolated, the webhook + cron can act without a session, and
+    // the link survives logout. Then seed brand identity (logo/city) from the
+    // Page — best effort.
     try {
-      await persistPages(tenantId, pages);
+      await persistConnection(tenantId, { userName: me.name, userToken, adAccountId, pages });
       const p = pages[0];
       if (p.picture) {
         await prisma.brandKit.update({ where: { tenantId }, data: { logoUrl: p.picture } });

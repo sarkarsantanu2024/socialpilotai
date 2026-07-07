@@ -4,7 +4,7 @@
 //  • If a Facebook Page is connected: real published posts + engagement are
 //    overlaid live from the Graph API, and an ad recommendation is derived from
 //    the real top-performing post.
-import { getConnection, activePage } from "@/lib/fb/session";
+import { getActivePage } from "@/lib/fb/connection";
 import { fetchPageData } from "@/lib/meta";
 import { getCurrentTenant } from "@/lib/currentTenant";
 import { getTenantBundle } from "@/lib/store";
@@ -48,6 +48,7 @@ function buildRecommendations(
     {
       id: `rec_${top.id}`,
       postId: top.id,
+      postFbId: top.fbPostId ?? undefined,
       postTitle: top.title,
       postThumb: top.assetUrl,
       score: 90,
@@ -70,7 +71,7 @@ export async function getClientData(): Promise<ClientData> {
   const profileType = (tenant.businessProfile?.type as BusinessType) ?? "coaching";
   const city = tenant.businessProfile?.city ?? "";
 
-  const fbPage = activePage(getConnection());
+  const fbPage = await getActivePage(tenant.id);
   if (fbPage) {
     try {
       const real = await fetchPageData(fbPage.id, fbPage.token);

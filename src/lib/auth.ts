@@ -2,7 +2,10 @@
 // Server-only (do not import from client components).
 export {
   SESSION_COOKIE,
-  setSessionCookie,
+  setSession,
+  setActiveCenter,
   clearSessionCookie,
+  getSession,
+  getSessionUserId,
   getSessionTenantId,
 } from "@/lib/session";

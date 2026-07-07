@@ -160,6 +160,8 @@ export async function getTenantBundle(tenant: TenantWithBrand): Promise<TenantDa
     interest: l.interest ?? "General enquiry",
     createdAt: l.createdAt.toISOString(),
     isTest: l.isTest,
+    status: l.status ?? "new",
+    notes: l.notes ?? undefined,
   }));
 
   const page: ConnectedPage = {

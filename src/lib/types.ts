@@ -101,6 +101,7 @@ export interface PostAnalytics {
 export interface AdRecommendation {
   id: string;
   postId: string;
+  postFbId?: string; // the real Facebook post id, for the Boost deep-link
   postTitle: string;
   postThumb: string;
   score: number; // 0-100 performance score
@@ -150,6 +151,8 @@ export interface Lead {
   interest: string;
   createdAt: string;
   isTest: boolean;
+  status?: string; // new | contacted | enrolled | lost
+  notes?: string;
 }
 
 export interface CalendarEntry {

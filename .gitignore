@@ -19,3 +19,6 @@ next-env.d.ts
 # generated demo assets (regenerate with `npm run demo:pdf`)
 /demo-assets
 /DEMO_GUIDE.pdf
+
+# internal deliverables / client-demo docs (not part of the shipped app)
+/deliverables

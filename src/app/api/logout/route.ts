@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import { clearSessionCookie } from "@/lib/session";
-import { clearConnection } from "@/lib/fb/session";
 
-// Clears the session server-side (the cookie is httpOnly, so client JS can't
-// delete it) and drops the Facebook Page connection so logout fully signs out.
+// Signs the user out (clears the httpOnly session cookie). The Facebook Page
+// connection is NOT touched — it lives per-center in the DB and must persist
+// across logins so the center stays connected.
 export async function POST() {
   clearSessionCookie();
-  clearConnection();
   return NextResponse.json({ ok: true });
 }

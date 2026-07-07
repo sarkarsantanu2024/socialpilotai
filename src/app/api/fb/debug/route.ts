@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { FB_GRAPH_VERSION } from "@/lib/config";
-import { getConnection, activePage } from "@/lib/fb/session";
+import { getActivePage } from "@/lib/fb/connection";
 
 // Diagnostic: shows what each Graph edge ACTUALLY returns for the connected
 // Page, so we can see why image posts / new posts aren't surfacing. Open
 // /api/fb/debug in the browser while logged into the app. Safe & read-only.
 export async function GET() {
-  const page = activePage(getConnection());
+  const page = await getActivePage();
   if (!page) return NextResponse.json({ connected: false, error: "No Page connected" });
 
   const GRAPH = `https://graph.facebook.com/${FB_GRAPH_VERSION}`;

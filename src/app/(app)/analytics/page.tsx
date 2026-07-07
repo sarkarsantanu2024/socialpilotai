@@ -7,27 +7,21 @@ import { BarMini } from "@/components/charts/BarMini";
 import { getClientData } from "@/lib/clientData";
 import { generateReport } from "@/lib/ai";
 import { compact } from "@/lib/utils";
+import { weeklyTrend, bestDays as calcBestDays, growthPct } from "@/lib/insights";
 
-const trend = [
-  { label: "May 5", reach: 5200, engagement: 380 },
-  { label: "May 12", reach: 7600, engagement: 610 },
-  { label: "May 19", reach: 9900, engagement: 980 },
-  { label: "May 26", reach: 13600, engagement: 1440 },
-  { label: "Jun 2", reach: 17400, engagement: 2010 },
-];
-
-const bestDays = [
-  { label: "Mon", value: 22 },
-  { label: "Tue", value: 31 },
-  { label: "Wed", value: 28 },
-  { label: "Thu", value: 44 },
-  { label: "Fri", value: 38 },
-  { label: "Sat", value: 61 },
-  { label: "Sun", value: 47 },
-];
+function EmptyChart({ text }: { text: string }) {
+  return (
+    <div className="grid h-[220px] place-items-center rounded-xl border border-dashed border-ink-200 px-6 text-center text-sm text-ink-400">
+      {text}
+    </div>
+  );
+}
 
 export default async function AnalyticsPage() {
   const { posts, analytics, live } = await getClientData();
+  const trend = weeklyTrend(posts, analytics);
+  const { data: bestDays, highlight: bestDayIdx } = calcBestDays(posts, analytics);
+  const hasData = analytics.length > 0;
   const totals = analytics.reduce(
     (acc, a) => ({
       reach: acc.reach + a.reach,
@@ -46,12 +40,14 @@ export default async function AnalyticsPage() {
   const top = ranked[0];
   const topPost = top ? posts.find((p) => p.id === top.postId) : posts[0];
 
-  const report = await generateReport({
-    topPost: topPost?.title ?? "your recent posts",
-    reach: totals.reach,
-    engagementRate: top?.engagementRate ?? 0,
-    growth: 18,
-  });
+  const report = hasData
+    ? await generateReport({
+        topPost: topPost?.title ?? "your recent posts",
+        reach: totals.reach,
+        engagementRate: top?.engagementRate ?? 0,
+        growth: growthPct(trend),
+      })
+    : null;
 
   return (
     <div className="space-y-6">
@@ -72,23 +68,32 @@ export default async function AnalyticsPage() {
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-          <StatCard label="Total reach" value={compact(totals.reach)} delta={{ value: "18%", up: true }} icon={<Eye className="h-5 w-5" />} />
-          <StatCard label="Video views" value={compact(totals.videoViews)} delta={{ value: "32%", up: true }} icon={<PlayCircle className="h-5 w-5" />} />
-          <StatCard label="Link clicks" value={compact(totals.clicks)} delta={{ value: "9%", up: true }} icon={<MousePointerClick className="h-5 w-5" />} />
-          <StatCard label="Shares" value={compact(totals.shares)} delta={{ value: "21%", up: true }} icon={<Share2 className="h-5 w-5" />} />
+          <StatCard label="Total reach" value={compact(totals.reach)} icon={<Eye className="h-5 w-5" />} />
+          <StatCard label="Video views" value={compact(totals.videoViews)} icon={<PlayCircle className="h-5 w-5" />} />
+          <StatCard label="Link clicks" value={compact(totals.clicks)} icon={<MousePointerClick className="h-5 w-5" />} />
+          <StatCard label="Shares" value={compact(totals.shares)} icon={<Share2 className="h-5 w-5" />} />
         </div>
       )}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="card p-5 lg:col-span-2">
-          <h2 className="mb-2 font-semibold">Reach & engagement (30 days)</h2>
-          <TrendChart data={trend} />
-          {live && <p className="mt-2 text-xs text-ink-400">Trend is illustrative — daily reach history needs the read_insights permission.</p>}
+          <h2 className="mb-2 font-semibold">Reach &amp; engagement</h2>
+          {trend.length ? (
+            <TrendChart data={trend} />
+          ) : (
+            <EmptyChart text="Your reach & engagement trend appears here once you've published posts." />
+          )}
         </div>
         <div className="card p-5">
           <h2 className="mb-2 font-semibold">Best day to post</h2>
-          <BarMini data={bestDays} highlight={5} />
-          <p className="mt-2 text-sm text-ink-500">Saturdays drive the most engagement.</p>
+          {bestDays.length ? (
+            <>
+              <BarMini data={bestDays} highlight={bestDayIdx} />
+              <p className="mt-2 text-sm text-ink-500"><b>{bestDays[bestDayIdx]?.label}</b> drives the most engagement.</p>
+            </>
+          ) : (
+            <EmptyChart text="Publish on different days to discover your best day to post." />
+          )}
         </div>
       </div>
 
@@ -101,7 +106,9 @@ export default async function AnalyticsPage() {
           <h2 className="font-semibold">Plain-language report</h2>
           <Badge tone="violet">AI generated</Badge>
         </div>
-        <p className="text-sm leading-relaxed text-ink-700">{report}</p>
+        <p className="text-sm leading-relaxed text-ink-700">
+          {report ?? "Your AI-written performance summary appears here once you have posts with engagement data."}
+        </p>
       </div>
 
       {/* Per-post table */}
