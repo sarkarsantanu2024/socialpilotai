@@ -32,7 +32,7 @@ export default async function PostsPage() {
             {connectedPage.category} · {compact(connectedPage.followers)} followers
           </p>
         </div>
-        <Badge tone={live ? "green" : "amber"}>{live ? "Live data" : "Demo data"}</Badge>
+        <Badge tone={live ? "green" : "amber"}>{live ? "Live data" : "Not connected"}</Badge>
       </div>
 
       <PostsClient initial={posts} />
