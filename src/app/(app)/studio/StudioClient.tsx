@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { AiStatus } from "@/components/ui/AiStatus";
 import {
   Sparkles,
   Image as ImageIcon,
@@ -107,7 +108,7 @@ export function StudioClient() {
   const [images, setImages] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [published, setPublished] = useState<{ live: boolean; permalink: string; pageName: string | null; scheduled: boolean; error?: string } | null>(null);
+  const [published, setPublished] = useState<{ live: boolean; permalink: string; pageName: string | null; scheduled: boolean; error?: string; instagram?: { ok: boolean; permalink?: string; error?: string } } | null>(null);
   const [scheduleAt, setScheduleAt] = useState("");
   const [showSchedule, setShowSchedule] = useState(false);
   // Bumped each generate so swiped slides remount with fresh image load state.
@@ -115,6 +116,40 @@ export function StudioClient() {
   // Own creative the user uploads: data URL preview for images, file name for clips.
   const [upload, setUpload] = useState<{ name: string; preview: string | null } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Real AI (Imagen) image generation — Pro feature.
+  const [aiImg, setAiImg] = useState<{ busy: boolean; msg: string | null; upgrade: boolean }>({ busy: false, msg: null, upgrade: false });
+  // Instagram cross-posting (shown only when an IG account is linked to the Page).
+  const [ig, setIg] = useState<{ connected: boolean; username: string | null }>({ connected: false, username: null });
+  const [crossIg, setCrossIg] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/fb/status", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((s) => setIg({ connected: !!s?.instagram?.connected, username: s?.instagram?.username ?? null }))
+      .catch(() => {});
+  }, []);
+
+  async function generateAiImage() {
+    setAiImg({ busy: true, msg: null, upgrade: false });
+    try {
+      const res = await fetch("/api/image/ai", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.image) {
+        // Use the AI image as the (first) slide; it publishes to FB via byte upload.
+        setImages((prev) => [data.image, ...prev.filter((u) => u !== data.image)]);
+        setUpload(null);
+        setGenKey((k) => k + 1);
+        setAiImg({ busy: false, msg: "AI image ready", upgrade: false });
+      } else {
+        setAiImg({ busy: false, msg: data.error ?? "Couldn't generate an AI image.", upgrade: !!data.upgrade });
+      }
+    } catch {
+      setAiImg({ busy: false, msg: "Something went wrong.", upgrade: false });
+    }
+  }
 
   const fmt = FORMATS.find((f) => f.key === format)!;
   const isVideo = fmt.kind === "video";
@@ -199,8 +234,9 @@ export function StudioClient() {
     if (!result) return;
     setPublishing(true);
     setPublished(null);
-    // Only public http(s) image URLs can be attached; data-URL uploads post as text.
-    const httpImage = fmt.kind === "image" ? images.find((u) => u.startsWith("http")) : undefined;
+    // The active image (stock http URL, or an AI/uploaded data-URL). Facebook
+    // accepts both (data-URLs upload as bytes); Instagram needs a public URL.
+    const primaryImage = fmt.kind === "image" ? slideImage(0) : undefined;
     const caption = `${result.caption}\n\n${result.hashtags.join(" ")}`;
     try {
       const res = await fetch("/api/publish", {
@@ -208,12 +244,13 @@ export function StudioClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           caption,
-          assetUrl: httpImage,
+          assetUrl: primaryImage,
           scheduledAt: when || undefined,
           title: result.title,
           type: fmt.postType,
           hashtags: result.hashtags,
           music: result.music && result.music !== "—" ? result.music : undefined,
+          instagram: crossIg && ig.connected && !when,
         }),
       });
       const data = await res.json();
@@ -223,6 +260,7 @@ export function StudioClient() {
         pageName: data.pageName ?? null,
         scheduled: !!data.scheduled,
         error: data.ok === false ? data.error : undefined,
+        instagram: data.instagram,
       });
       setShowSchedule(false);
     } catch {
@@ -353,6 +391,7 @@ export function StudioClient() {
               <><Wand2 className="h-4 w-4" /> Generate {fmt.label.toLowerCase()}</>
             )}
           </button>
+          <div className="mt-3"><AiStatus compact /></div>
         </div>
 
         <div className="card p-4">
@@ -403,10 +442,23 @@ export function StudioClient() {
                 <p className="text-sm font-semibold">{fmt.label} preview</p>
                 <p className="text-[11px] text-ink-400">{fmt.dims}</p>
               </div>
-              <button onClick={generate} className="btn-ghost text-xs">
-                <RefreshCw className="h-3.5 w-3.5" /> Regenerate
-              </button>
+              <div className="flex items-center gap-2">
+                {fmt.kind === "image" && (
+                  <button onClick={generateAiImage} disabled={aiImg.busy} className="btn-ghost text-xs disabled:opacity-60">
+                    {aiImg.busy ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Creating…</> : <><Sparkles className="h-3.5 w-3.5" /> AI image (Pro)</>}
+                  </button>
+                )}
+                <button onClick={generate} className="btn-ghost text-xs">
+                  <RefreshCw className="h-3.5 w-3.5" /> Regenerate
+                </button>
+              </div>
             </div>
+            {aiImg.msg && (
+              <p className={cn("text-xs", aiImg.upgrade ? "text-amber-700" : aiImg.msg.includes("ready") ? "text-emerald-600" : "text-rose-600")}>
+                {aiImg.msg}
+                {aiImg.upgrade && <> — <a href="/billing" className="font-semibold underline">Upgrade to Pro</a></>}
+              </p>
+            )}
 
             {/* Creative preview at the real aspect ratio */}
             <div className="mx-auto w-full" style={{ maxWidth: fmt.maxW }}>
@@ -465,6 +517,14 @@ export function StudioClient() {
                 </div>
               </div>
 
+              {/* Instagram cross-post — only when an IG account is linked */}
+              {ig.connected && fmt.kind === "image" && (
+                <label className="mt-2 flex items-center gap-2 text-xs text-ink-600">
+                  <input type="checkbox" checked={crossIg} onChange={(e) => setCrossIg(e.target.checked)} />
+                  <span>Also post to Instagram{ig.username ? ` (@${ig.username})` : ""} — needs a stock image (AI/uploaded images can&apos;t cross-post yet)</span>
+                </label>
+              )}
+
               {/* Schedule picker */}
               {showSchedule && (
                 <div className="mt-3 flex flex-col gap-2 rounded-xl border border-brand-100 bg-white p-3 sm:flex-row sm:items-center">
@@ -500,6 +560,11 @@ export function StudioClient() {
                   )}
                   {published.permalink && (
                     <a href={published.permalink} target="_blank" rel="noreferrer" className="underline">View post</a>
+                  )}
+                  {published.instagram && (
+                    published.instagram.ok
+                      ? <span className="ml-1">· 📸 Also on Instagram {published.instagram.permalink && <a href={published.instagram.permalink} target="_blank" rel="noreferrer" className="underline">view</a>}</span>
+                      : <span className="ml-1 text-amber-700">· Instagram skipped: {published.instagram.error}</span>
                   )}
                 </p>
               )}

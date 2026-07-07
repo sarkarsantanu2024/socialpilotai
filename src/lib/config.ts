@@ -29,7 +29,11 @@ export function fbAppConfigured() {
 
 // Permissions requested at connect time (architecture §12). pages_manage_posts +
 // pages_read_engagement + pages_show_list cover publishing, scheduling, insights.
-const CORE_SCOPES = ["pages_show_list", "pages_manage_posts", "pages_read_engagement"];
+// instagram_* let us publish to the IG account linked to the Page (App Review).
+const CORE_SCOPES = [
+  "pages_show_list", "pages_manage_posts", "pages_read_engagement",
+  "instagram_basic", "instagram_content_publish",
+];
 // Premium (Ads & Leads) adds Marketing API + Lead Ads retrieval. Separate App Review.
 const PREMIUM_SCOPES = ["ads_management", "leads_retrieval", "business_management"];
 

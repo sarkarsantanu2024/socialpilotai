@@ -17,6 +17,8 @@ export interface FbPageData {
   category?: string;
   picture?: string;
   city?: string;
+  igUserId?: string;
+  igUsername?: string;
 }
 
 export interface FbConnectionData {
@@ -35,6 +37,8 @@ export interface FbPageInput {
   category?: string;
   picture?: string;
   city?: string;
+  igUserId?: string;
+  igUsername?: string;
 }
 
 async function tid(explicit?: string | null): Promise<string | null> {
@@ -74,6 +78,8 @@ export async function persistConnection(
         category: p.category ?? null,
         picture: p.picture ?? null,
         city: p.city ?? null,
+        igUserId: p.igUserId ?? null,
+        igUsername: p.igUsername ?? null,
         pageToken: encrypt(p.token),
         connected: true,
         isActive: i === 0,
@@ -95,7 +101,7 @@ export async function getConnection(tenantId?: string | null): Promise<FbConnect
     .map((r): FbPageData | null => {
       const token = decrypt(r.pageToken);
       if (!token) return null;
-      return { id: r.pageId, name: r.name, token, category: r.category ?? undefined, picture: r.picture ?? undefined, city: r.city ?? undefined };
+      return { id: r.pageId, name: r.name, token, category: r.category ?? undefined, picture: r.picture ?? undefined, city: r.city ?? undefined, igUserId: r.igUserId ?? undefined, igUsername: r.igUsername ?? undefined };
     })
     .filter((p): p is FbPageData => p !== null);
   if (!pages.length) return null;
