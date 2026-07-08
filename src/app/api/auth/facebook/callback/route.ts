@@ -135,8 +135,17 @@ export async function GET(req: Request) {
       console.warn("[fb/callback] persist failed:", (e as Error).message);
     }
 
-    // Page connected — land where the flow started (Settings, Organization, or
-    // the connect-link success page).
+    // Page connected. If this is a logged-in connect (not the public connect-link
+    // flow) AND the account manages several Pages, send the user to a picker so
+    // they consciously map a Page to THIS center — otherwise the first Page was
+    // silently made active, which connects the wrong Page when one account admins
+    // many. A single Page → nothing to choose, go straight to the destination.
+    if (!connectCenterId && pages.length > 1) {
+      const u = new URL("/select-page", origin);
+      u.searchParams.set("returnTo", dest);
+      return NextResponse.redirect(u);
+    }
+    // Land where the flow started (Settings, Organization, or connect-link page).
     return back("connected");
   } catch {
     return fail("token_failed");
