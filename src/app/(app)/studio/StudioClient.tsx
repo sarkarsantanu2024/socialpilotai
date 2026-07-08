@@ -480,6 +480,9 @@ export function StudioClient() {
                       cta={i === 0 ? result.cta : undefined}
                       badge={i === 0 ? (upload?.preview ? "Your creative" : kit.logoText) : `${i + 1}/${fmt.slides}`}
                       showLogo={i === 0 && !upload?.preview}
+                      // The user's own uploaded image (slide 0) is a finished
+                      // design — show it clean, with no text/CTA/scrim on top.
+                      ownCreative={i === 0 && !!upload?.preview}
                     />
                   ))}
                 </div>
@@ -591,6 +594,7 @@ function Slide({
   cta,
   badge,
   showLogo,
+  ownCreative,
 }: {
   ratio: string;
   image?: string;
@@ -598,11 +602,14 @@ function Slide({
   cta?: string;
   badge: string;
   showLogo?: boolean;
+  ownCreative?: boolean;
 }) {
   const { kit } = useBrand().brand;
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   const showImg = !!image && !failed;
+  // The user's own finished design: never draw scrim, badge, title or CTA over it.
+  const showChrome = !ownCreative;
 
   return (
     <div
@@ -619,7 +626,7 @@ function Slide({
             onError={() => setFailed(true)}
             className={cn("absolute inset-0 h-full w-full object-cover transition-opacity duration-500", loaded ? "opacity-100" : "opacity-0")}
           />
-          <span className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/25" />
+          {showChrome && <span className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/25" />}
         </>
       )}
       {showImg && !loaded && (
@@ -630,15 +637,17 @@ function Slide({
           </span>
         </span>
       )}
-      <div className="relative">
-        {showLogo && kit.logo ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={kit.logo} alt="" className="h-8 w-fit max-w-[45%] rounded-md bg-white/20 object-contain p-1 backdrop-blur-sm" />
-        ) : (
-          <span className="rounded-md bg-white/20 px-2 py-0.5 text-[11px] font-bold backdrop-blur-sm">{badge}</span>
-        )}
-      </div>
-      {(title || cta) && (
+      {showChrome && (
+        <div className="relative">
+          {showLogo && kit.logo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={kit.logo} alt="" className="h-8 w-fit max-w-[45%] rounded-md bg-white/20 object-contain p-1 backdrop-blur-sm" />
+          ) : (
+            <span className="rounded-md bg-white/20 px-2 py-0.5 text-[11px] font-bold backdrop-blur-sm">{badge}</span>
+          )}
+        </div>
+      )}
+      {showChrome && (title || cta) && (
         <div className="relative">
           {title && <p className="text-lg font-extrabold leading-tight drop-shadow-sm">{title}</p>}
           {cta && (
