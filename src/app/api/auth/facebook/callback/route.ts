@@ -3,6 +3,8 @@ import { FB_GRAPH_VERSION, fbAppConfigured, fbRedirectUri } from "@/lib/config";
 import { persistConnection, type FbPageInput } from "@/lib/fb/connection";
 import { rememberPageToken } from "@/lib/fb/store";
 import { getSessionTenantId } from "@/lib/session";
+import { decodeOAuthState } from "@/lib/fb/oauthState";
+import { verifyConnectToken } from "@/lib/fb/connectToken";
 import { prisma } from "@/lib/db";
 
 const GRAPH = `https://graph.facebook.com/${FB_GRAPH_VERSION}`;
@@ -12,11 +14,28 @@ const GRAPH = `https://graph.facebook.com/${FB_GRAPH_VERSION}`;
 // the CURRENTLY LOGGED-IN tenant. Facebook is a "connect your Page" action here,
 // not a login method — the user must already be signed in.
 export async function GET(req: Request) {
-  const origin = new URL(req.url).origin;
-  const tenantId = getSessionTenantId();
-  if (!tenantId) return NextResponse.redirect(new URL("/login?next=/settings", origin));
-  // User is signed in — always surface failures back on Settings.
-  const fail = (q: string) => NextResponse.redirect(new URL(`/settings?fb=${q}`, origin));
+  const url = new URL(req.url);
+  const origin = url.origin;
+  // Where to land after connecting — carried through OAuth `state` (default Settings).
+  const { returnTo, connect } = decodeOAuthState(url.searchParams.get("state"));
+  const dest = returnTo ?? "/settings";
+  // Connect-link flow: a branch owner (no login) connecting their own Page. The
+  // signed token names the target center — re-verified here, never trusted raw.
+  const connectCenterId = connect ? verifyConnectToken(connect)?.centerId ?? null : null;
+  // Otherwise fall back to the logged-in user's active center.
+  const tenantId = connectCenterId ?? getSessionTenantId();
+  if (!tenantId) {
+    // Connect link was bad/expired → tell them; a normal connect w/o session → login.
+    if (connect) return NextResponse.redirect(new URL("/connect/done?fb=expired", origin));
+    return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(dest)}`, origin));
+  }
+  // User is signed in — surface success/failure back where they started.
+  const back = (q: string) => {
+    const u = new URL(dest, origin);
+    u.searchParams.set("fb", q);
+    return NextResponse.redirect(u);
+  };
+  const fail = back;
 
   if (!fbAppConfigured()) return NextResponse.redirect(new URL("/login?fb=not_configured", origin));
 
@@ -116,8 +135,9 @@ export async function GET(req: Request) {
       console.warn("[fb/callback] persist failed:", (e as Error).message);
     }
 
-    // Page connected for the already-signed-in tenant — land on Settings.
-    return NextResponse.redirect(new URL("/settings?fb=connected", origin));
+    // Page connected — land where the flow started (Settings, Organization, or
+    // the connect-link success page).
+    return back("connected");
   } catch {
     return fail("token_failed");
   }

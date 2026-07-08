@@ -6,7 +6,7 @@ import { OrganizationClient } from "./OrganizationClient";
 
 // Management console for an HO owner / super-admin: add centers (single or bulk)
 // and invite people. Center-only managers are sent back to the dashboard.
-export default async function OrganizationPage() {
+export default async function OrganizationPage({ searchParams }: { searchParams: { tab?: string } }) {
   const user = await getCurrentUser();
   if (!user) redirect("/api/session/clear");
   const overview = await getOrgOverview(user);
@@ -15,11 +15,11 @@ export default async function OrganizationPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        phase="Multi-tenant · organization"
-        title={overview.org.name}
-        subtitle="Add and manage your centers, and invite center owners or staff. Invites let people set their own password — you never share credentials."
+        phase="Head office · all centers"
+        title={`${overview.org.name} — HO console`}
+        subtitle="Your head-office cockpit: see every center at a glance, push content to branches, add centers, and invite managers or staff. To work inside one center, switch to it from the selector in the top bar."
       />
-      <OrganizationClient initial={overview} />
+      <OrganizationClient initial={overview} initialTab={searchParams.tab} />
     </div>
   );
 }

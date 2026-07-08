@@ -271,6 +271,13 @@ export function StudioClient() {
 
   return (
     <div className="grid gap-6 lg:grid-cols-5">
+      {/* Scope note — Studio always acts on the center you're currently in. */}
+      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 rounded-xl border border-ink-100 bg-ink-50/70 px-4 py-2.5 text-sm text-ink-600 lg:col-span-5">
+        <Sparkles className="h-4 w-4 text-brand-500" />
+        <span>Creating for <b className="text-ink-800">{profile.name}</b> — publishes to <b>this center&apos;s</b> Facebook Page.</span>
+        <a href="/organization" className="font-medium text-brand-600 hover:underline">To post to several branches at once, use Organization → Publish.</a>
+      </div>
+
       {/* Left: input */}
       <div className="space-y-4 lg:col-span-2">
         <div className="card p-5">

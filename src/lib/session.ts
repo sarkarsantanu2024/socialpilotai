@@ -9,6 +9,10 @@ import crypto from "crypto";
 export const SESSION_COOKIE = "sp_session";
 const MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 
+// Sentinel active-center value meaning "Head office" — the owner is operating
+// org-wide (no single center), so HO branding + the org console apply.
+export const HO_MODE = "__ho__";
+
 export interface Session {
   userId: string;
   centerId: string | null; // active center (a Tenant id)
@@ -87,5 +91,6 @@ export function getSessionUserId(): string | null {
  * (clientData, api routes, fb callback) continue to work unchanged.
  */
 export function getSessionTenantId(): string | null {
-  return getSession()?.centerId ?? null;
+  const c = getSession()?.centerId ?? null;
+  return c === HO_MODE ? null : c; // HO mode has no active center
 }

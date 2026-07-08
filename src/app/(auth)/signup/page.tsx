@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, Crown } from "lucide-react";
 import type { BusinessType } from "@/lib/types";
 
 const BUSINESS_TYPES: BusinessType[] = ["coaching", "gym", "playschool", "abacus", "salon", "restaurant"];
@@ -53,6 +53,14 @@ export default function SignupPage() {
       <p className="mt-1 text-sm text-ink-500">
         Start running your page on autopilot in minutes.
       </p>
+
+      <div className="mt-4 flex items-start gap-2 rounded-xl border border-brand-100 bg-brand-50/60 p-3 text-xs text-ink-600">
+        <Crown className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+        <span>
+          This creates the <b>Owner</b> of a new workspace — full control of your business, posts and settings.
+          Managers and staff don&apos;t sign up here; you invite them later from <b>Organization → People</b>.
+        </span>
+      </div>
 
       <form onSubmit={submit} className="mt-6 space-y-4">
         <div>

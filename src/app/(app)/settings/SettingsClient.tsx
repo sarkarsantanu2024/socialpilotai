@@ -17,11 +17,36 @@ export interface PlanInfo {
   email: string | null;
 }
 
-export function SettingsClient({ plan }: { plan: PlanInfo }) {
+export interface CenterDetails {
+  ownerName: string;
+  phone: string;
+  whatsapp: string;
+  email: string;
+  locality: string;
+  address: string;
+}
+
+export function SettingsClient({ plan, details }: { plan: PlanInfo; details: CenterDetails }) {
   const { brand, setProfile, setKit } = useBrand();
   const { profile, kit } = brand;
   const [saved, setSaved] = useState(false);
   const logoRef = useRef<HTMLInputElement>(null);
+
+  // Contact details live on the business profile but not the brand store, so
+  // they're saved directly. Editable by the center's own owner/manager too.
+  const [d, setD] = useState<CenterDetails>(details);
+  const [savingD, setSavingD] = useState(false);
+  const [dSaved, setDSaved] = useState(false);
+  const setField = (k: keyof CenterDetails) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => { setD((p) => ({ ...p, [k]: e.target.value })); setDSaved(false); };
+
+  async function saveDetails() {
+    setSavingD(true);
+    const res = await fetch("/api/profile", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ profile: d }),
+    });
+    setSavingD(false);
+    setDSaved(res.ok);
+  }
 
   function onLogo(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -70,6 +95,41 @@ export function SettingsClient({ plan }: { plan: PlanInfo }) {
             <Field label="Target audience" className="sm:col-span-2">
               <input className="input" value={profile.audience} onChange={(e) => setProfile({ audience: e.target.value })} />
             </Field>
+          </div>
+        </section>
+
+        {/* Center contact details */}
+        <section className="card p-5">
+          <div className="mb-4 flex items-center gap-2">
+            <Link2 className="h-5 w-5 text-brand-500" />
+            <h2 className="font-semibold">Center details</h2>
+            <span className="text-xs text-ink-400">— owner, contact &amp; address for this center</span>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Owner name">
+              <input className="input" value={d.ownerName} onChange={setField("ownerName")} placeholder="e.g. Debdulal Mishra" />
+            </Field>
+            <Field label="Locality / area">
+              <input className="input" value={d.locality} onChange={setField("locality")} placeholder="e.g. Barasat" />
+            </Field>
+            <Field label="Phone">
+              <input className="input" value={d.phone} onChange={setField("phone")} placeholder="e.g. 74074 21404" />
+            </Field>
+            <Field label="WhatsApp number">
+              <input className="input" value={d.whatsapp} onChange={setField("whatsapp")} placeholder="e.g. 917407421404" />
+            </Field>
+            <Field label="Email" className="sm:col-span-2">
+              <input className="input" value={d.email} onChange={setField("email")} placeholder="branch@example.com" />
+            </Field>
+            <Field label="Address" className="sm:col-span-2">
+              <textarea className="input min-h-[64px] resize-y" value={d.address} onChange={setField("address")} placeholder="Full street address" />
+            </Field>
+          </div>
+          <div className="mt-4 flex items-center gap-3">
+            <button onClick={saveDetails} disabled={savingD} className="btn-primary disabled:opacity-60">
+              {savingD ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</> : <><Check className="h-4 w-4" /> Save details</>}
+            </button>
+            {dSaved && <span className="text-sm font-medium text-emerald-600">Saved.</span>}
           </div>
         </section>
 

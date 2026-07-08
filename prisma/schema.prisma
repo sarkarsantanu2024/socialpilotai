@@ -60,6 +60,14 @@ model Organization {
   vertical  String? // abacus | coaching | gym | playschool | salon | restaurant
   createdAt DateTime @default(now())
 
+  // Head-office default brand kit — new centers inherit these unless overridden.
+  logoUrl   String?
+  logoText  String?
+  primary   String?
+  secondary String?
+  accent    String?
+  font      String?
+
   // Billing lives at the org level for chains; standalone shops bill their org too.
   plan         String    @default("trial") // trial | starter | pro
   planStatus   String    @default("active")
@@ -146,13 +154,19 @@ model BusinessProfile {
   tenantId String @unique
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  name     String
-  type     String // coaching | gym | playschool | abacus | salon | restaurant
-  city     String
-  language String
-  tone     String
-  audience String
-  whatsapp String? // business WhatsApp number for click-to-chat lead follow-up
+  name      String
+  type      String // coaching | gym | playschool | abacus | salon | restaurant
+  city      String
+  language  String
+  tone      String
+  audience  String
+  whatsapp  String? // WhatsApp number we message (branch owner) — click-to-chat + connect links
+  phone     String? // contact phone number (may differ from WhatsApp)
+  ownerName String? // branch owner/manager contact name
+  address   String? // full street address
+  locality  String? // area / neighbourhood within the city
+  email     String? // contact email for the center
+  fbUrl     String? // reference link to the branch's Facebook Page
 }
 
 model BrandKit {

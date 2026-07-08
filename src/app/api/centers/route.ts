@@ -15,6 +15,9 @@ export async function GET(req: Request) {
   return NextResponse.json({
     activeCenterId,
     isSuperadmin: user.platformRole === "superadmin",
+    // So the header shows "Owner / HO" even before any center exists (role is
+    // otherwise inferred from the centers list, which can be empty).
+    isOwner: user.memberships.some((m) => m.role === "owner"),
     centers,
   });
 }

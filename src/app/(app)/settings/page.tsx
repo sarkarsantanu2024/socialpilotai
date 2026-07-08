@@ -1,10 +1,19 @@
+import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SettingsClient } from "./SettingsClient";
 import { AiStatus } from "@/components/ui/AiStatus";
-import { requireTenant } from "@/lib/currentTenant";
+import { getCurrentTenant } from "@/lib/currentTenant";
+import { getCurrentUser } from "@/lib/access";
 
 export default async function SettingsPage() {
-  const tenant = await requireTenant();
+  // Settings edits the ACTIVE center. In Head-office mode (no center) an owner is
+  // sent to HO Settings; managers/staff without a center see the no-centers screen.
+  const user = await getCurrentUser();
+  if (!user) redirect("/api/session/clear");
+  const tenant = await getCurrentTenant();
+  if (!tenant) {
+    redirect(user.memberships.some((m) => m.role === "owner") ? "/organization?tab=settings" : "/no-centers");
+  }
   const trialDaysLeft = tenant.trialEndsAt
     ? Math.max(0, Math.ceil((tenant.trialEndsAt.getTime() - Date.now()) / 86_400_000))
     : 0;
@@ -22,6 +31,14 @@ export default async function SettingsPage() {
           trialDaysLeft,
           username: tenant.username,
           email: tenant.email,
+        }}
+        details={{
+          ownerName: tenant.businessProfile?.ownerName ?? "",
+          phone: tenant.businessProfile?.phone ?? "",
+          whatsapp: tenant.businessProfile?.whatsapp ?? "",
+          email: tenant.businessProfile?.email ?? "",
+          locality: tenant.businessProfile?.locality ?? "",
+          address: tenant.businessProfile?.address ?? "",
         }}
       />
       <AiStatus />
