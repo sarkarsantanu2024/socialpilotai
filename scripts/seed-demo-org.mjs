@@ -56,7 +56,7 @@ async function main() {
   await makeCenter(org.id, { name: "Mind Mantra — Howrah", city: "Howrah", type: "abacus" });
 
   // 3) People
-  const superadmin = await upsertUser({ username: "superadmin", password: "superadmin123", name: "Platform Admin", platformRole: "superadmin", email: "systems@webspiders.com" });
+  const superadmin = await upsertUser({ username: "superadmin", password: "superadmin123", name: "Platform Admin", platformRole: "superadmin", email: "sarkarsantanu69@gmail.com" });
   const ho = await upsertUser({ username: "mindmantra", password: "mindmantra123", name: "Mind Mantra HO" });
   const manager = await upsertUser({ username: "barasat", password: "barasat123", name: "Barasat Center Owner" });
 

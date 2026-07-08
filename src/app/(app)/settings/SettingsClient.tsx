@@ -424,7 +424,7 @@ function PlanCard({ plan }: { plan: PlanInfo }) {
                 <Badge tone="green">Current</Badge>
               ) : (
                 <a
-                  href={`mailto:systems@webspiders.com?subject=Upgrade to ${p.name} (₹${p.price}/mo)`}
+                  href={`mailto:sarkarsantanu69@gmail.com?subject=Upgrade to ${p.name} (₹${p.price}/mo)`}
                   className="btn-soft text-xs"
                 >
                   Upgrade

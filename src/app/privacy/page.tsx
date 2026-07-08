@@ -74,7 +74,7 @@ export default function PrivacyPage() {
     {
       h: "10. Contact",
       p: [
-        "For any privacy request, data-deletion request or grievance, contact the SocialPilot AI team at systems@webspiders.com. We respond to DPDP and Meta data requests within the timelines the law requires.",
+        "For any privacy request, data-deletion request or grievance, contact the SocialPilot AI team at sarkarsantanu69@gmail.com. We respond to DPDP and Meta data requests within the timelines the law requires.",
       ],
     },
   ];
