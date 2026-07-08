@@ -328,7 +328,9 @@ function ConnectionsCard({ centers }: { centers: Center[] }) {
     await fetch("/api/center/select", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ centerId: id }),
     }).catch(() => {});
-    window.location.href = "/api/auth/facebook";
+    // Return to the HO console after connecting so the Connect button flips to
+    // "Reconnect" and the "N/2 connected" count updates without a manual reload.
+    window.location.href = "/api/auth/facebook?returnTo=/organization";
   }
 
   function connectLink(c: Center): string {
