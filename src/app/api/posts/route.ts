@@ -26,6 +26,36 @@ export async function POST(req: Request) {
   return NextResponse.json({ ok: true, post: { id: post.id } });
 }
 
+// Edit a draft/scheduled post before it's published. Scoped to the tenant's own
+// rows. Only fields the editor exposes (title, caption, hashtags) are updatable.
+export async function PATCH(req: Request) {
+  const tenant = await getCurrentTenant();
+  if (!tenant) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+
+  const b = await req.json().catch(() => ({}));
+  const id = String(b.id ?? "");
+  if (!id) return NextResponse.json({ error: "Missing id." }, { status: 400 });
+
+  // Never edit an already-published post here — it's live on Facebook.
+  const existing = await prisma.post.findFirst({ where: { id, tenantId: tenant.id } });
+  if (!existing) return NextResponse.json({ error: "Post not found." }, { status: 404 });
+  if (existing.status === "published") {
+    return NextResponse.json({ error: "Published posts can't be edited here." }, { status: 400 });
+  }
+
+  const caption = typeof b.caption === "string" ? b.caption : existing.caption;
+  const title = typeof b.title === "string" && b.title.trim()
+    ? b.title.trim().slice(0, 80)
+    : existing.title;
+  const hashtags = Array.isArray(b.hashtags) ? b.hashtags : existing.hashtags;
+
+  const post = await prisma.post.update({ where: { id }, data: { caption, title, hashtags } });
+  return NextResponse.json({
+    ok: true,
+    post: { id: post.id, title: post.title, caption: post.caption, hashtags: post.hashtags },
+  });
+}
+
 export async function DELETE(req: Request) {
   const tenant = await getCurrentTenant();
   if (!tenant) return NextResponse.json({ error: "Not signed in." }, { status: 401 });

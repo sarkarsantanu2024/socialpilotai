@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Send, Clock, FileEdit, CheckCircle2, RefreshCw, ExternalLink, Trash2 } from "lucide-react";
+import { Send, Clock, FileEdit, CheckCircle2, RefreshCw, ExternalLink, Trash2, Pencil, X } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { fmtDateTime } from "@/lib/utils";
@@ -19,8 +19,14 @@ export function PostsClient({ initial }: { initial: Post[] }) {
   const [items, setItems] = useState(initial);
   const [tab, setTab] = useState<PostStatus | "all">("all");
   const [busy, setBusy] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Post | null>(null);
 
   const filtered = tab === "all" ? items : items.filter((p) => p.status === tab);
+
+  function onSaved(updated: { id: string; title: string; caption: string; hashtags: string[] }) {
+    setItems((prev) => prev.map((p) => (p.id === updated.id ? { ...p, ...updated } : p)));
+    setEditing(null);
+  }
 
   async function publishNow(post: Post) {
     setBusy(post.id);
@@ -166,6 +172,17 @@ export function PostsClient({ initial }: { initial: Post[] }) {
                     )}
                   </button>
                 )}
+                {/* Edit is only for posts not yet on Facebook (drafts/scheduled). */}
+                {p.status !== "published" && (
+                  <button
+                    onClick={() => setEditing(p)}
+                    disabled={busy === p.id}
+                    title="Edit post"
+                    className="btn-ghost px-2.5 text-xs"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                )}
                 <button
                   onClick={() => removePost(p)}
                   disabled={busy === p.id}
@@ -185,6 +202,82 @@ export function PostsClient({ initial }: { initial: Post[] }) {
           No posts in this tab yet.
         </div>
       )}
+
+      {editing && <EditModal post={editing} onClose={() => setEditing(null)} onSaved={onSaved} />}
+    </div>
+  );
+}
+
+// Edit a draft/scheduled post's title + caption before publishing.
+function EditModal({
+  post,
+  onClose,
+  onSaved,
+}: {
+  post: Post;
+  onClose: () => void;
+  onSaved: (u: { id: string; title: string; caption: string; hashtags: string[] }) => void;
+}) {
+  const [title, setTitle] = useState(post.title);
+  const [caption, setCaption] = useState(post.caption);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/posts", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: post.id, title, caption, hashtags: post.hashtags }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        setError(data.error ?? "Couldn't save changes.");
+        setSaving(false);
+        return;
+      }
+      onSaved(data.post);
+    } catch {
+      setError("Network error — please try again.");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onClick={onClose}>
+      <div className="card w-full max-w-lg p-5" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold">Edit post</h3>
+          <button onClick={onClose} className="btn-ghost px-2" title="Close"><X className="h-4 w-4" /></button>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          <div>
+            <label className="label">Title</label>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} className="input text-sm" maxLength={80} />
+          </div>
+          <div>
+            <label className="label">Caption</label>
+            <textarea
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+              rows={8}
+              className="input text-sm"
+            />
+            <p className="mt-1 text-[11px] text-ink-400">This is the exact text that will be posted to Facebook.</p>
+          </div>
+          {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>}
+        </div>
+
+        <div className="mt-4 flex justify-end gap-2">
+          <button onClick={onClose} className="btn-ghost text-sm">Cancel</button>
+          <button onClick={save} disabled={saving} className="btn-primary text-sm">
+            {saving ? <><RefreshCw className="h-4 w-4 animate-spin" /> Saving…</> : "Save changes"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
