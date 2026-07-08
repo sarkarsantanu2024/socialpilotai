@@ -161,6 +161,8 @@ export default function Landing() {
         © {new Date().getFullYear()} SocialPilot AI · Facebook marketing automation for small businesses
         <span className="mx-2">·</span>
         <Link href="/privacy" className="hover:text-ink-600 hover:underline">Privacy Policy</Link>
+        <span className="mx-2">·</span>
+        <Link href="/terms" className="hover:text-ink-600 hover:underline">Terms of Service</Link>
       </footer>
     </div>
   );
