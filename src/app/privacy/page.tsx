@@ -16,45 +16,65 @@ export default function PrivacyPage() {
       p: [
         "Account data: your name, business name, username, email (optional), and a hashed password.",
         "Business profile & brand: business type, city, tone, language and brand colours you provide.",
-        "Facebook connection: a Page access token (stored encrypted) that you grant so we can publish and read insights for your Page. We never see or store your Facebook password.",
+        "Facebook & Instagram connection: when you choose to connect a Page, a Page access token (stored encrypted) that you grant so we can publish content and read insights for that Page. We never see or store your Facebook password — connection happens through Facebook Login only.",
         "Content & leads: posts you create, and lead/enquiry details (name, phone, email, interest) captured through your Page or entered by you.",
         "Payments: UPI reference details you submit for plan activation.",
       ],
     },
     {
-      h: "3. Why we use it (purpose)",
+      h: "3. Facebook & Instagram (Meta) data",
+      p: [
+        "SocialPilot AI uses the Meta (Facebook & Instagram) Platform. When you connect your Page, and only with your consent, we request the following permissions and use them solely as described:",
+        "• pages_show_list — to show you the list of Pages you manage so you can choose which one to connect.",
+        "• pages_manage_posts — to publish or schedule the posts you create to the Page you selected.",
+        "• pages_read_engagement — to show you your Page’s reach, reactions, comments and shares so you can see how your content performed.",
+        "• instagram_basic — to identify the Instagram Business account linked to your Page (if any).",
+        "• instagram_content_publish — to publish, with your consent, the same post to that linked Instagram account.",
+        "We use Meta data only to provide these features for you. We do not sell it, use it for advertising to third parties, or share it except with the infrastructure providers that run our service. Our use of information received from Meta APIs follows the Meta Platform Terms and Developer Policies.",
+      ],
+    },
+    {
+      h: "4. Why we use it (purpose)",
       p: [
         "To provide the service: generate and publish content, show analytics, manage leads, and process plan activations. We do not sell your data or your customers’ data.",
       ],
     },
     {
-      h: "4. AI processing",
+      h: "5. AI processing",
       p: [
         "Post text is generated using Google Gemini. Prompts include your business profile (name, city, tone, language) but not your customers’ personal data. On a free AI tier, prompts may be used by the AI provider to improve their models — avoid putting sensitive data in prompts.",
       ],
     },
     {
-      h: "5. Storage & security",
+      h: "6. Storage & security",
       p: [
         "Data is stored on managed cloud infrastructure. Facebook and ad tokens are encrypted at rest (AES-256-GCM). Passwords are hashed with bcrypt. Access is scoped per organization and center.",
       ],
     },
     {
-      h: "6. Your rights (DPDP Act, 2023)",
+      h: "7. Revoking access & deleting your data",
       p: [
-        "You can access, correct, export or delete your data and your captured leads. Lead data can be exported (CSV) and deleted from the Leads screen at any time. To delete your whole account, contact us and we will erase your data.",
+        "Disconnect any time: in the app go to Settings → Connections → Disconnect Facebook. This deletes the stored Page access token for that center immediately; we can no longer publish to or read that Page.",
+        "You can also remove SocialPilot AI from your Facebook account at any time under Facebook → Settings & Privacy → Settings → Apps and Websites.",
+        "Delete your data: to delete your whole account and all associated data (including any stored Meta tokens, posts and leads), email us at the address in the Contact section with the subject “Delete my account”. We verify the request and erase your data within 30 days. This page is our Data Deletion Instructions for Meta App Review purposes.",
       ],
     },
     {
-      h: "7. Data retention",
+      h: "8. Your rights (DPDP Act, 2023)",
       p: [
-        "We keep data while your account is active. Test leads, rejected recommendations and expired trials are cleaned up periodically. On account deletion, we remove your data within a reasonable period.",
+        "You can access, correct, export or delete your data and your captured leads. Lead data can be exported (CSV) and deleted from the Leads screen at any time. To delete your whole account, use the deletion steps above.",
       ],
     },
     {
-      h: "8. Contact",
+      h: "9. Data retention",
       p: [
-        "For any privacy request or grievance, contact the SocialPilot AI team at the email associated with your account manager. We respond to DPDP requests within the timelines the law requires.",
+        "We keep data while your account is active. Test leads, rejected recommendations and expired trials are cleaned up periodically. On account deletion, we remove your data within 30 days.",
+      ],
+    },
+    {
+      h: "10. Contact",
+      p: [
+        "For any privacy request, data-deletion request or grievance, contact the SocialPilot AI team at systems@webspiders.com. We respond to DPDP and Meta data requests within the timelines the law requires.",
       ],
     },
   ];
