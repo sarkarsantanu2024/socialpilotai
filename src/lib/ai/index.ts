@@ -5,7 +5,7 @@
 // the app never crashes. This makes the product resilient in production.
 // ───────────────────────────────────────────────────────────────
 import { hasGemini } from "@/lib/config";
-import type { BusinessProfile, PostVariation } from "@/lib/types";
+import type { BusinessProfile, BusinessType, PostVariation } from "@/lib/types";
 
 export interface GenerateInput {
   prompt: string;
@@ -47,6 +47,37 @@ const HASHTAG_BANK = [
   "#Education", "#TopperTips", "#AdmissionsOpen",
 ];
 
+// Fixed, on-brand hashtag sets by business type — so every post from a given
+// vertical carries consistent, correct discovery tags instead of the model's
+// ad-hoc (and sometimes wrong) ones. A per-CENTER tag derived from the business
+// name is prepended so each branch is still discoverable on its own.
+const FIXED_HASHTAGS: Partial<Record<BusinessType, string[]>> = {
+  abacus: [
+    "#AbacusLearning", "#MentalMath", "#BrainDevelopment", "#SmartKids",
+    "#MemoryPower", "#ConcentrationSkills", "#FastCalculation", "#ChildDevelopment",
+    "#KidsEducation", "#FutureReadyKids", "#AbacusClasses", "#StudentSuccess",
+    "#উজ্জ্বলভবিষ্যৎ",
+  ],
+};
+
+// "MMA Ramnagar" → "#MMARamnagar". Keeps ASCII letters/digits AND any non-ASCII
+// letters (so Bangla/Hindi center names still produce a valid tag), drops spaces
+// and punctuation. escaped-range avoids needing the unicode ('u') regex flag.
+function centerHashtag(name: string): string | null {
+  const clean = (name ?? "").replace(new RegExp("[^0-9A-Za-z\u0080-\uFFFF]", "g"), "");
+  return clean ? `#${clean}` : null;
+}
+
+// The hashtags a post should carry for this business, or null if the type has no
+// fixed set (then we keep the model/mock hashtags). Center tag first, then the
+// fixed brand set; de-duplicated.
+export function brandedHashtags(profile: BusinessProfile): string[] | null {
+  const fixed = FIXED_HASHTAGS[profile.type];
+  if (!fixed) return null;
+  const centerTag = centerHashtag(profile.name);
+  return Array.from(new Set([...(centerTag ? [centerTag] : []), ...fixed]));
+}
+
 const MUSIC_BANK = [
   "Upbeat motivational — 'Rise Up' (royalty-free)",
   "Trending lo-fi — 'Focus Flow'",
@@ -83,11 +114,12 @@ function mockGenerate(input: GenerateInput): PostVariation[] {
     },
   ];
 
+  const branded = brandedHashtags(profile);
   return variations.map((v, i) => ({
     id: `var_${i + 1}`,
     title: v.title,
     caption: v.caption,
-    hashtags: pick(HASHTAG_BANK, 5, seed + i),
+    hashtags: branded ?? pick(HASHTAG_BANK, 5, seed + i),
     music:
       type === "reel" || type === "video"
         ? MUSIC_BANK[(seed + i) % MUSIC_BANK.length]
@@ -136,13 +168,18 @@ No markdown, no commentary — just the JSON array.`;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const parsed: any[] = JSON.parse(raw);
     if (!Array.isArray(parsed) || !parsed.length) throw new Error("bad shape");
+    // A fixed brand hashtag set (by business type) overrides the model's, so
+    // tags stay consistent and correct across every post for this vertical.
+    const branded = brandedHashtags(profile);
     return parsed.slice(0, 3).map((v, i) => ({
       id: `var_${i + 1}`,
       title: String(v.title ?? "").slice(0, 90) || `Variation ${i + 1}`,
       caption: String(v.caption ?? ""),
-      hashtags: Array.isArray(v.hashtags)
-        ? v.hashtags.map((h: string) => (h.startsWith("#") ? h : `#${h}`)).slice(0, 5)
-        : [],
+      hashtags:
+        branded ??
+        (Array.isArray(v.hashtags)
+          ? v.hashtags.map((h: string) => (h.startsWith("#") ? h : `#${h}`)).slice(0, 5)
+          : []),
       music: wantsMusic ? String(v.music ?? MUSIC_BANK[i % MUSIC_BANK.length]) : "—",
       cta: String(v.cta ?? "Learn more"),
     }));
