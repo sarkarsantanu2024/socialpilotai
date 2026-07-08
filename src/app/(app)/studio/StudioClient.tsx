@@ -480,9 +480,6 @@ export function StudioClient() {
                       cta={i === 0 ? result.cta : undefined}
                       badge={i === 0 ? (upload?.preview ? "Your creative" : kit.logoText) : `${i + 1}/${fmt.slides}`}
                       showLogo={i === 0 && !upload?.preview}
-                      // The user's own uploaded image (slide 0) is a finished
-                      // design — show it clean, with no text/CTA/scrim on top.
-                      ownCreative={i === 0 && !!upload?.preview}
                     />
                   ))}
                 </div>
@@ -594,7 +591,6 @@ function Slide({
   cta,
   badge,
   showLogo,
-  ownCreative,
 }: {
   ratio: string;
   image?: string;
@@ -602,14 +598,15 @@ function Slide({
   cta?: string;
   badge: string;
   showLogo?: boolean;
-  ownCreative?: boolean;
 }) {
   const { kit } = useBrand().brand;
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   const showImg = !!image && !failed;
-  // The user's own finished design: never draw scrim, badge, title or CTA over it.
-  const showChrome = !ownCreative;
+  // Never draw scrim/badge/title/CTA over a real image — show the creative clean.
+  // The overlay only appears on the pure-gradient fallback (no image available),
+  // where it IS the design and would otherwise be blank.
+  const showChrome = !showImg;
 
   return (
     <div
