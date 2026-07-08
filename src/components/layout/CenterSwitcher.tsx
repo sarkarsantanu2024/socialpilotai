@@ -1,19 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Building2, ChevronDown, Search, Check, Shield, Crown, Store } from "lucide-react";
+import { Building2, ChevronDown, Search, Check, Crown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ROLE_BADGE, type Role } from "./role";
 
-type Role = "superadmin" | "owner" | "manager" | "staff";
+// Mirror of lib/session.ts HO_MODE — the active-center sentinel for "Head office".
+const HO_MODE = "__ho__";
+
 type Center = { id: string; name: string; city: string; type: string; orgId: string | null; orgName: string | null; role: Role };
-type Data = { activeCenterId: string | null; isSuperadmin: boolean; centers: Center[] };
-
-const ROLE_BADGE: Record<Role, { label: string; icon: typeof Shield; cls: string }> = {
-  superadmin: { label: "Super-admin", icon: Shield, cls: "bg-violet-50 text-violet-700" },
-  owner: { label: "Owner / HO", icon: Crown, cls: "bg-amber-50 text-amber-700" },
-  manager: { label: "Manager", icon: Store, cls: "bg-brand-50 text-brand-700" },
-  staff: { label: "Staff", icon: Store, cls: "bg-ink-100 text-ink-600" },
-};
+type Data = { activeCenterId: string | null; isSuperadmin: boolean; isOwner?: boolean; centers: Center[] };
 
 export function CenterSwitcher() {
   const [data, setData] = useState<Data | null>(null);
@@ -35,7 +31,9 @@ export function CenterSwitcher() {
     return () => { document.removeEventListener("mousedown", onClick); document.removeEventListener("keydown", onKey); };
   }, [open]);
 
-  const active = data?.centers.find((c) => c.id === data.activeCenterId) ?? data?.centers[0] ?? null;
+  const hoMode = data?.activeCenterId === HO_MODE;
+  const canHO = !!(data?.isOwner || data?.isSuperadmin);
+  const active = hoMode ? null : (data?.centers.find((c) => c.id === data.activeCenterId) ?? data?.centers[0] ?? null);
 
   const filtered = useMemo(() => {
     if (!data) return [];
@@ -43,7 +41,6 @@ export function CenterSwitcher() {
     return s ? data.centers.filter((c) => `${c.name} ${c.city} ${c.orgName ?? ""}`.toLowerCase().includes(s)) : data.centers;
   }, [data, q]);
 
-  // Group by organization (useful for HO / super-admin with many centers).
   const groups = useMemo(() => {
     const m = new Map<string, { orgName: string; centers: Center[] }>();
     for (const c of filtered) {
@@ -56,23 +53,30 @@ export function CenterSwitcher() {
   }, [filtered]);
 
   async function pick(centerId: string) {
-    if (centerId === data?.activeCenterId) { setOpen(false); return; }
+    if (!hoMode && centerId === data?.activeCenterId) { setOpen(false); return; }
     setSwitching(centerId);
     await fetch("/api/center/select", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ centerId }),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ centerId }),
     }).catch(() => {});
-    setSwitching(null);
-    setOpen(false);
-    // Full reload so every server component AND the top-bar FB status reflect
-    // the newly-active center (a soft router.refresh() won't re-run client effects).
+    setSwitching(null); setOpen(false);
     window.location.reload();
   }
 
-  // Nothing to switch between → don't clutter the bar.
-  if (!data || data.centers.length <= 1) return null;
+  async function pickHeadOffice() {
+    if (hoMode) { setOpen(false); return; }
+    setSwitching(HO_MODE);
+    await fetch("/api/center/select", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ headOffice: true }),
+    }).catch(() => {});
+    setSwitching(null); setOpen(false);
+    window.location.reload();
+  }
 
-  const badge = active ? ROLE_BADGE[active.role] : ROLE_BADGE.manager;
+  // Show the switcher for anyone with >1 center, and always for owners/super-admins
+  // (so they can flip between Head office and any branch).
+  if (!data || (data.centers.length <= 1 && !canHO)) return null;
+
+  const badge = hoMode ? ROLE_BADGE.owner : (active ? ROLE_BADGE[active.role] : ROLE_BADGE.manager);
 
   return (
     <div className="relative" ref={ref}>
@@ -81,32 +85,43 @@ export function CenterSwitcher() {
         className="flex max-w-[15rem] items-center gap-2 rounded-xl border border-ink-100 py-1.5 pl-2 pr-2.5 transition hover:bg-ink-50"
         aria-expanded={open}
       >
-        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-brand-gradient text-white">
-          <Building2 className="h-4 w-4" />
+        <span className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-lg text-white", hoMode ? "bg-amber-500" : "bg-brand-gradient")}>
+          {hoMode ? <Crown className="h-4 w-4" /> : <Building2 className="h-4 w-4" />}
         </span>
         <span className="hidden min-w-0 text-left sm:block">
-          <span className="block truncate text-xs font-semibold leading-tight">{active?.name ?? "Select center"}</span>
-          <span className="block truncate text-[10px] leading-tight text-ink-400">{data.centers.length} centers · {badge.label}</span>
+          <span className="block truncate text-xs font-semibold leading-tight">{hoMode ? "Head office" : (active?.name ?? "Select center")}</span>
+          <span className="block truncate text-[10px] leading-tight text-ink-400">{hoMode ? `All ${data.centers.length} centers · ${badge.label}` : `${data.centers.length} centers · ${badge.label}`}</span>
         </span>
         <ChevronDown className={cn("h-4 w-4 shrink-0 text-ink-400 transition", open && "rotate-180")} />
       </button>
 
       {open && (
         <div className="absolute left-0 top-12 z-40 w-80 overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-pop">
+          {/* Head office (org-wide) — owners & super-admins */}
+          {canHO && (
+            <button
+              onClick={pickHeadOffice}
+              className={cn("flex w-full items-center gap-2.5 border-b border-ink-100 px-3 py-2.5 text-left transition hover:bg-ink-50", hoMode && "bg-amber-50/60")}
+            >
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-amber-500 text-white"><Crown className="h-4 w-4" /></span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold text-ink-800">Head office</span>
+                <span className="block truncate text-[11px] text-ink-400">Operate all centers · HO branding</span>
+              </span>
+              {switching === HO_MODE ? (
+                <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
+              ) : hoMode ? <Check className="h-4 w-4 shrink-0 text-amber-600" /> : null}
+            </button>
+          )}
+
           <div className="border-b border-ink-100 p-2">
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-ink-400" />
-              <input
-                autoFocus
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Search centers…"
-                className="input h-9 w-full pl-8 text-sm"
-              />
+              <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search centers…" className="input h-9 w-full pl-8 text-sm" />
             </div>
           </div>
           <div className="max-h-80 overflow-y-auto p-1.5">
-            {groups.length === 0 && <p className="px-3 py-6 text-center text-sm text-ink-400">No centers match.</p>}
+            {groups.length === 0 && <p className="px-3 py-6 text-center text-sm text-ink-400">No centers yet.</p>}
             {groups.map((g) => (
               <div key={g.orgName} className="mb-1">
                 {(data.isSuperadmin || groups.length > 1) && (
@@ -114,7 +129,7 @@ export function CenterSwitcher() {
                 )}
                 {g.centers.map((c) => {
                   const RB = ROLE_BADGE[c.role];
-                  const isActive = c.id === data.activeCenterId;
+                  const isActive = !hoMode && c.id === data.activeCenterId;
                   return (
                     <button
                       key={c.id}

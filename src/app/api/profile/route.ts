@@ -20,6 +20,13 @@ export async function POST(req: Request) {
       if (typeof profile.language === "string") data.language = profile.language;
       if (typeof profile.tone === "string") data.tone = profile.tone;
       if (typeof profile.audience === "string") data.audience = profile.audience;
+      // Contact details (editable by the center's own owner/manager too).
+      if (typeof profile.ownerName === "string") data.ownerName = profile.ownerName.trim() || null;
+      if (typeof profile.phone === "string") data.phone = profile.phone.trim() || null;
+      if (typeof profile.whatsapp === "string") data.whatsapp = profile.whatsapp.trim() || null;
+      if (typeof profile.address === "string") data.address = profile.address.trim() || null;
+      if (typeof profile.locality === "string") data.locality = profile.locality.trim() || null;
+      if (typeof profile.email === "string") data.email = profile.email.trim().toLowerCase() || null;
       if (Object.keys(data).length) {
         await prisma.businessProfile.update({ where: { tenantId: tenant.id }, data });
       }

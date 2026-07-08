@@ -10,27 +10,38 @@ import {
   Bell,
   Search,
   ChevronDown,
-  Settings,
+  UserCircle,
   LogOut,
   CheckCheck,
   Users,
-  Building2,
   Inbox,
   Send,
   AlertTriangle,
-  CreditCard,
 } from "lucide-react";
-import { navItems } from "./nav";
+import { navForRole } from "./nav";
 import { cn } from "@/lib/utils";
 import { DEMO_MODE } from "@/lib/config";
 import { useBrand } from "@/lib/brand/store";
 import { CenterSwitcher } from "./CenterSwitcher";
+import { ROLE_BADGE, accountRole, type Role } from "./role";
 
 // Real notifications, fetched from /api/notifications (scoped to the active center).
-type Notif = { id: string; title: string; body?: string | null; type: string; href?: string | null; read: boolean; createdAt: string };
+type Notif = {
+  id: string;
+  title: string;
+  body?: string | null;
+  type: string;
+  href?: string | null;
+  read: boolean;
+  createdAt: string;
+};
 
 const NOTIF_ICON: Record<string, typeof Bell> = {
-  approval: Inbox, publish: Send, lead: Users, warning: AlertTriangle, info: Bell,
+  approval: Inbox,
+  publish: Send,
+  lead: Users,
+  warning: AlertTriangle,
+  info: Bell,
 };
 
 function relTime(iso: string): string {
@@ -48,8 +59,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [menu, setMenu] = useState<"none" | "notif" | "profile">("none");
   const [notifs, setNotifs] = useState<Notif[]>([]);
-  const [fb, setFb] = useState<{ connected: boolean; needsReconnect?: boolean; pages: { id: string; name: string }[]; activePageId: string | null } | null>(null);
-  const [canManageOrg, setCanManageOrg] = useState(false);
+  const [fb, setFb] = useState<{
+    connected: boolean;
+    needsReconnect?: boolean;
+    pages: { id: string; name: string }[];
+    activePageId: string | null;
+  } | null>(null);
+  const [role, setRole] = useState<Role | null>(null);
   const headerRef = useRef<HTMLDivElement>(null);
 
   // When a real Facebook Page is connected, the header shows IT (not the demo profile).
@@ -58,10 +74,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       .then((r) => r.json())
       .then(setFb)
       .catch(() => {});
-    // Show the Organization console only to HO owners / super-admins.
+    // Resolve the account-level role — drives both the header badge and which
+    // left-menu items are shown (HO sees Organization/Billing, staff sees less).
     fetch("/api/centers", { cache: "no-store" })
       .then((r) => r.json())
-      .then((d) => setCanManageOrg(!!d?.isSuperadmin || (d?.centers ?? []).some((c: { role?: string }) => c.role === "owner")))
+      .then((d) => {
+        const centers: { id: string; role: Role }[] = d?.centers ?? [];
+        setRole(accountRole(!!d?.isSuperadmin, !!d?.isOwner, centers, d?.activeCenterId ?? null));
+      })
       .catch(() => {});
     // Real notifications for the active center.
     fetch("/api/notifications", { cache: "no-store" })
@@ -69,11 +89,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       .then((d) => setNotifs(d?.notifications ?? []))
       .catch(() => {});
   }, []);
-  const connectedName = fb?.connected ? fb.pages.find((p) => p.id === fb.activePageId)?.name ?? null : null;
+  const connectedName = fb?.connected
+    ? (fb.pages.find((p) => p.id === fb.activePageId)?.name ?? null)
+    : null;
 
   async function markAllRead() {
     setNotifs((ns) => ns.map((n) => ({ ...n, read: true })));
-    await fetch("/api/notifications", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).catch(() => {});
+    await fetch("/api/notifications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    }).catch(() => {});
   }
 
   const unreadCount = notifs.filter((n) => !n.read).length;
@@ -92,7 +118,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (menu === "none") return;
     function onClick(e: MouseEvent) {
-      if (headerRef.current && !headerRef.current.contains(e.target as Node)) setMenu("none");
+      if (headerRef.current && !headerRef.current.contains(e.target as Node))
+        setMenu("none");
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setMenu("none");
@@ -125,12 +152,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 w-72 transform border-r border-ink-100 bg-white transition-transform lg:static lg:w-64 lg:translate-x-0",
-          open ? "translate-x-0" : "-translate-x-full"
+          "fixed inset-y-0 left-0 z-40 w-72 transform border-r border-ink-100 bg-white transition-transform lg:sticky lg:top-0 lg:h-screen lg:w-64 lg:translate-x-0 lg:self-start",
+          open ? "translate-x-0" : "-translate-x-full",
         )}
       >
         <div className="flex h-16 items-center justify-between border-b border-ink-100 px-5">
-          <Link href="/dashboard" className="flex items-center gap-2" onClick={() => setOpen(false)}>
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-2"
+            onClick={() => setOpen(false)}
+          >
             <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-600 text-white">
               <Plane className="h-5 w-5 -rotate-45" />
             </span>
@@ -147,11 +178,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </button>
         </div>
 
-        <nav className="flex flex-col gap-0.5 overflow-y-auto p-3" style={{ maxHeight: "calc(100vh - 4rem)" }}>
-          {(canManageOrg
-            ? [...navItems.slice(0, -1), { href: "/organization", label: "Organization", icon: Building2 }, { href: "/billing", label: "Billing", icon: CreditCard }, navItems[navItems.length - 1]]
-            : navItems
-          ).map((item) => {
+        <nav
+          className="flex flex-col gap-0.5 overflow-y-auto p-3"
+          style={{ maxHeight: "calc(100vh - 4rem)" }}
+        >
+          {navForRole(role).map((item) => {
             const active = pathname === item.href;
             const Icon = item.icon;
             return (
@@ -163,13 +194,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition",
                   active
                     ? "bg-brand-50 text-brand-700"
-                    : "text-ink-600 hover:bg-ink-50 hover:text-ink-900"
+                    : "text-ink-600 hover:bg-ink-50 hover:text-ink-900",
                 )}
               >
-                <Icon className={cn("h-[18px] w-[18px]", active ? "text-brand-600" : "text-ink-400 group-hover:text-ink-600")} />
+                <Icon
+                  className={cn(
+                    "h-[18px] w-[18px]",
+                    active
+                      ? "text-brand-600"
+                      : "text-ink-400 group-hover:text-ink-600",
+                  )}
+                />
                 <span className="flex-1">{item.label}</span>
                 {item.phase && (
-                  <span className={cn("text-[10px] font-semibold", active ? "text-brand-400" : "text-ink-300")}>
+                  <span
+                    className={cn(
+                      "text-[10px] font-semibold",
+                      active ? "text-brand-400" : "text-ink-300",
+                    )}
+                  >
                     {item.phase}
                   </span>
                 )}
@@ -213,10 +256,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </span>
             )}
 
+            {/* Account-level role — so you always know how you're logged in. */}
+            {role &&
+              (() => {
+                const RB = ROLE_BADGE[role];
+                return (
+                  <span
+                    className={cn(
+                      "hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold sm:flex",
+                      RB.cls,
+                    )}
+                    title={`You are signed in as ${RB.label}`}
+                  >
+                    <RB.icon className="h-3.5 w-3.5" />
+                    {RB.label}
+                  </span>
+                );
+              })()}
+
             {/* Notifications */}
             <div className="relative">
               <button
-                onClick={() => setMenu((m) => (m === "notif" ? "none" : "notif"))}
+                onClick={() =>
+                  setMenu((m) => (m === "notif" ? "none" : "notif"))
+                }
                 className="relative rounded-lg p-2 text-ink-600 hover:bg-ink-50"
                 aria-label="Notifications"
                 aria-expanded={menu === "notif"}
@@ -242,7 +305,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   </div>
                   <div className="max-h-80 overflow-y-auto">
                     {notifs.length === 0 && (
-                      <p className="px-4 py-8 text-center text-sm text-ink-400">You&apos;re all caught up.</p>
+                      <p className="px-4 py-8 text-center text-sm text-ink-400">
+                        You&apos;re all caught up.
+                      </p>
                     )}
                     {notifs.map((n) => {
                       const Icon = NOTIF_ICON[n.type] ?? Bell;
@@ -252,18 +317,40 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                             <Icon className="h-4 w-4" />
                           </span>
                           <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium leading-snug text-ink-800">{n.title}</p>
-                            {n.body && <p className="mt-0.5 line-clamp-2 text-xs text-ink-500">{n.body}</p>}
-                            <p className="mt-0.5 text-[11px] text-ink-400">{relTime(n.createdAt)}</p>
+                            <p className="text-sm font-medium leading-snug text-ink-800">
+                              {n.title}
+                            </p>
+                            {n.body && (
+                              <p className="mt-0.5 line-clamp-2 text-xs text-ink-500">
+                                {n.body}
+                              </p>
+                            )}
+                            <p className="mt-0.5 text-[11px] text-ink-400">
+                              {relTime(n.createdAt)}
+                            </p>
                           </div>
-                          {!n.read && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand-500" />}
+                          {!n.read && (
+                            <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand-500" />
+                          )}
                         </>
                       );
-                      const cls = cn("flex gap-3 px-4 py-3 transition hover:bg-ink-50", !n.read && "bg-brand-50/50");
+                      const cls = cn(
+                        "flex gap-3 px-4 py-3 transition hover:bg-ink-50",
+                        !n.read && "bg-brand-50/50",
+                      );
                       return n.href ? (
-                        <Link key={n.id} href={n.href} onClick={() => setMenu("none")} className={cls}>{inner}</Link>
+                        <Link
+                          key={n.id}
+                          href={n.href}
+                          onClick={() => setMenu("none")}
+                          className={cls}
+                        >
+                          {inner}
+                        </Link>
                       ) : (
-                        <div key={n.id} className={cls}>{inner}</div>
+                        <div key={n.id} className={cls}>
+                          {inner}
+                        </div>
                       );
                     })}
                   </div>
@@ -274,23 +361,38 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {/* Profile */}
             <div className="relative">
               <button
-                onClick={() => setMenu((m) => (m === "profile" ? "none" : "profile"))}
+                onClick={() =>
+                  setMenu((m) => (m === "profile" ? "none" : "profile"))
+                }
                 className="flex items-center gap-2 rounded-xl border border-ink-100 py-1 pl-1 pr-2 transition hover:bg-ink-50 sm:pr-3"
                 aria-expanded={menu === "profile"}
               >
                 {brand.kit.logo ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={brand.kit.logo} alt="" className="h-8 w-8 rounded-lg object-cover ring-1 ring-ink-100" />
+                  <img
+                    src={brand.kit.logo}
+                    alt=""
+                    className="h-8 w-8 rounded-lg object-cover ring-1 ring-ink-100"
+                  />
                 ) : (
                   <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-100 text-sm font-bold text-brand-700">
                     {initials}
                   </span>
                 )}
                 <div className="hidden text-left sm:block">
-                  <p className="text-xs font-semibold leading-tight">{bizName.split(" ").slice(0, 2).join(" ")}</p>
-                  <p className="text-[11px] leading-tight text-ink-400">{bizSub}</p>
+                  <p className="text-xs font-semibold leading-tight">
+                    {bizName.split(" ").slice(0, 2).join(" ")}
+                  </p>
+                  <p className="text-[11px] leading-tight text-ink-400">
+                    {bizSub}
+                  </p>
                 </div>
-                <ChevronDown className={cn("h-4 w-4 text-ink-400 transition", menu === "profile" && "rotate-180")} />
+                <ChevronDown
+                  className={cn(
+                    "h-4 w-4 text-ink-400 transition",
+                    menu === "profile" && "rotate-180",
+                  )}
+                />
               </button>
 
               {menu === "profile" && (
@@ -298,17 +400,34 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <div className="border-b border-ink-100 px-4 py-3">
                     <p className="truncate text-sm font-semibold">{bizName}</p>
                     <p className="truncate text-xs text-ink-400">
-                      {connectedName ? "● Connected via Facebook" : bizSub || "Your workspace"}
+                      {connectedName
+                        ? "● Connected via Facebook"
+                        : bizSub || "Your workspace"}
                     </p>
+                    {role &&
+                      (() => {
+                        const RB = ROLE_BADGE[role];
+                        return (
+                          <span
+                            className={cn(
+                              "mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                              RB.cls,
+                            )}
+                          >
+                            <RB.icon className="h-3.5 w-3.5" />
+                            {RB.label}
+                          </span>
+                        );
+                      })()}
                   </div>
 
                   <div className="p-1.5">
                     <Link
-                      href="/settings"
+                      href="/account"
                       onClick={() => setMenu("none")}
                       className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-ink-700 transition hover:bg-ink-50"
                     >
-                      <Settings className="h-4 w-4 text-ink-400" /> Settings
+                      <UserCircle className="h-4 w-4 text-ink-400" /> My profile
                     </Link>
                     <button
                       onClick={logout}
@@ -327,12 +446,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {fb?.needsReconnect && (
           <div className="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800 sm:px-6">
             <AlertTriangle className="h-4 w-4 shrink-0" />
-            <span className="min-w-0 flex-1">Your Facebook connection has expired — publishing and insights are paused until you reconnect.</span>
-            <a href="/api/auth/facebook" className="btn-primary shrink-0 px-3 py-1.5 text-xs">Reconnect Facebook</a>
+            <span className="min-w-0 flex-1">
+              Your Facebook connection has expired — publishing and insights are
+              paused until you reconnect.
+            </span>
+            <a
+              href="/api/auth/facebook"
+              className="btn-primary shrink-0 px-3 py-1.5 text-xs"
+            >
+              Reconnect Facebook
+            </a>
           </div>
         )}
 
-        <main className="mx-auto w-full max-w-7xl flex-1 p-4 sm:p-6 lg:p-8">
+        <main className="mx-auto w-full flex-1 p-4 sm:p-6 lg:p-8">
           <div className="animate-fade-up">{children}</div>
         </main>
       </div>

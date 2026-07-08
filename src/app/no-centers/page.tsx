@@ -9,6 +9,8 @@ export default async function NoCenters() {
   const user = await getCurrentUser();
   if (!user) redirect("/api/session/clear");
   if (user.platformRole === "superadmin") redirect("/admin");
+  // Owners CAN create centers — send them to the console instead of this dead-end.
+  if (user.memberships.some((m) => m.role === "owner")) redirect("/organization");
 
   return (
     <div className="grid min-h-screen place-items-center bg-ink-50 p-6">

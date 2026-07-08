@@ -6,7 +6,7 @@
 //  • Center manager/staff (Membership.centerId set) → just that center.
 import "server-only";
 import { prisma, withDbRetry } from "@/lib/db";
-import { getSession } from "@/lib/session";
+import { getSession, HO_MODE } from "@/lib/session";
 
 export type Role = "superadmin" | "owner" | "manager" | "staff";
 
@@ -117,6 +117,8 @@ export async function resolveActiveCenterId(
   user: { id: string; platformRole: string; memberships: { role: string; organizationId: string; centerId: string | null }[] }
 ): Promise<string | null> {
   const s = getSession();
+  // Explicit Head-office mode → no active center (don't silently fall back).
+  if (s?.centerId === HO_MODE) return null;
   if (s?.centerId && (await canAccessCenter(user, s.centerId))) return s.centerId;
   const first = await firstAccessibleCenterId(user);
   return first;

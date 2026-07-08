@@ -21,7 +21,7 @@ export async function POST(req: Request) {
       await audit({ organizationId: orgId, actorUserId: user.id, actorName, action: "center.bulk_create", detail: `Added ${created} centers` });
       return NextResponse.json({ ok: true, created });
     }
-    const center = await createCenter(orgId, { name: body.name, type: body.type, city: body.city });
+    const center = await createCenter(orgId, body);
     await audit({ organizationId: orgId, centerId: center.id, actorUserId: user.id, actorName, action: "center.create", detail: `Added center "${body.name}"` });
     return NextResponse.json({ ok: true, centerId: center.id });
   } catch (e) {

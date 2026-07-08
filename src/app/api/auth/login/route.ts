@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { verifyLogin } from "@/lib/authService";
-import { setSession } from "@/lib/session";
+import { setSession, HO_MODE } from "@/lib/session";
 import { firstAccessibleCenterId, isSuperadmin } from "@/lib/access";
-import { prisma } from "@/lib/db";
 
 export async function POST(req: Request) {
   try {
@@ -22,19 +21,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, next: "/admin" });
     }
 
-    // Land the session on the user's first accessible center (if any).
+    // Owners / HO start in Head-office mode (org-wide, HO branding) on their
+    // Organization console. Managers & staff land on their own center's dashboard.
+    const isOwner = user.memberships.some((m) => m.role === "owner");
+    if (isOwner) {
+      setSession(user.id, HO_MODE);
+      return NextResponse.json({ ok: true, next: "/organization" });
+    }
     const centerId = await firstAccessibleCenterId(user);
     setSession(user.id, centerId);
-
-    // Only send the OWNER of a fresh, un-onboarded center to the setup wizard —
-    // not managers of already-set-up centers.
-    let next = "/dashboard";
-    const isOwner = user.memberships.some((m) => m.role === "owner");
-    if (centerId && isOwner) {
-      const t = await prisma.tenant.findUnique({ where: { id: centerId }, select: { onboarded: true } });
-      if (t && !t.onboarded) next = "/onboarding";
-    }
-    return NextResponse.json({ ok: true, next });
+    return NextResponse.json({ ok: true, next: "/dashboard" });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 });
   }
