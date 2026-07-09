@@ -117,7 +117,7 @@ export function OrganizationClient({ initial, initialTab }: { initial: Overview;
 }
 
 function RollupCard() {
-  const [data, setData] = useState<{ centers: { id: string; name: string; city: string; published: number; pending: number; leads: number; connected: boolean }[]; totals: { centers: number; published: number; pending: number; leads: number; connected: number } | null } | null>(null);
+  const [data, setData] = useState<{ centers: { id: string; name: string; city: string; published: number; leads: number; connected: boolean }[]; totals: { centers: number; published: number; leads: number; connected: number } | null } | null>(null);
   useEffect(() => {
     fetch("/api/rollup", { cache: "no-store" }).then((r) => r.json()).then(setData).catch(() => {});
   }, []);
@@ -132,7 +132,6 @@ function RollupCard() {
             <span className="chip bg-ink-100 text-ink-600">{t.centers} centers</span>
             <span className="chip bg-emerald-50 text-emerald-700">{t.connected} FB connected</span>
             <span className="chip bg-brand-50 text-brand-700">{t.published} posts published</span>
-            <span className="chip bg-amber-50 text-amber-700">{t.pending} pending approval</span>
             <span className="chip bg-violet-50 text-violet-700">{t.leads} leads</span>
           </div>
         )}
@@ -144,7 +143,6 @@ function RollupCard() {
               <th className="py-2 pr-3 font-semibold">Center</th>
               <th className="px-3 py-2 font-semibold">Facebook</th>
               <th className="px-3 py-2 font-semibold">Published</th>
-              <th className="px-3 py-2 font-semibold">Pending</th>
               <th className="px-3 py-2 font-semibold">Leads</th>
             </tr>
           </thead>
@@ -154,7 +152,6 @@ function RollupCard() {
                 <td className="py-2.5 pr-3"><span className="font-medium">{c.name}</span>{c.city && <span className="ml-1 text-xs text-ink-400">· {c.city}</span>}</td>
                 <td className="px-3 py-2.5">{c.connected ? <span className="chip bg-emerald-50 text-emerald-700">Connected</span> : <span className="chip bg-ink-100 text-ink-500">Not connected</span>}</td>
                 <td className="px-3 py-2.5 text-ink-600">{c.published}</td>
-                <td className="px-3 py-2.5">{c.pending > 0 ? <span className="font-semibold text-amber-600">{c.pending}</span> : <span className="text-ink-400">0</span>}</td>
                 <td className="px-3 py-2.5 text-ink-600">{c.leads}</td>
               </tr>
             ))}
