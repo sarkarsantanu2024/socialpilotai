@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Send, Clock, FileEdit, CheckCircle2, RefreshCw, ExternalLink, Trash2, Pencil, X } from "lucide-react";
+import { Send, Clock, FileEdit, CheckCircle2, RefreshCw, ExternalLink, Trash2, Pencil, X, Play, ImageIcon } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { fmtDateTime } from "@/lib/utils";
@@ -14,6 +14,34 @@ const TABS: { key: PostStatus | "all"; label: string }[] = [
   { key: "scheduled", label: "Scheduled" },
   { key: "published", label: "Published" },
 ];
+
+// Post thumbnail with a graceful fallback. Reels/videos from the Graph API often
+// have NO thumbnail (empty assetUrl), and Facebook CDN image URLs can fail/expire
+// — either way we show a branded placeholder instead of a black box.
+function PostThumb({ post }: { post: Post }) {
+  const [failed, setFailed] = useState(false);
+  const hasImg = !!post.assetUrl && /^(https?:|data:)/.test(post.assetUrl) && !failed;
+  if (hasImg) {
+    return (
+      <Image
+        src={post.assetUrl}
+        alt=""
+        fill
+        className="object-cover"
+        sizes="400px"
+        unoptimized
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+  const isClip = post.type === "reel" || post.type === "video";
+  return (
+    <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 bg-gradient-to-br from-brand-500 to-brand-700 text-white">
+      {isClip ? <Play className="h-8 w-8" /> : <ImageIcon className="h-8 w-8" />}
+      <span className="text-[11px] font-medium uppercase tracking-wide text-white/80">{post.type}</span>
+    </div>
+  );
+}
 
 export function PostsClient({ initial }: { initial: Post[] }) {
   const [items, setItems] = useState(initial);
@@ -126,7 +154,7 @@ export function PostsClient({ initial }: { initial: Post[] }) {
         {filtered.map((p) => (
           <div key={p.id} className="card overflow-hidden">
             <div className="relative aspect-[4/3] bg-ink-100">
-              <Image src={p.assetUrl} alt="" fill className="object-cover" sizes="400px" unoptimized />
+              <PostThumb post={p} />
               <div className="absolute left-2 top-2 flex gap-1.5">
                 <Badge tone="blue" className="bg-white/90">{p.type}</Badge>
                 {p.source === "festival" && <Badge tone="amber" className="bg-white/90">festival</Badge>}
