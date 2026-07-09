@@ -6,8 +6,13 @@ import { PostsClient } from "./PostsClient";
 import { getClientData } from "@/lib/clientData";
 import { compact } from "@/lib/utils";
 
+// Show only the most recent posts on this page (drafts/scheduled first, then the
+// latest published) instead of the full Page history.
+const RECENT_LIMIT = 10;
+
 export default async function PostsPage() {
   const { posts, page: connectedPage, live } = await getClientData();
+  const recent = posts.slice(0, RECENT_LIMIT);
   return (
     <div className="space-y-6">
       <PageHeader
@@ -35,7 +40,7 @@ export default async function PostsPage() {
         <Badge tone={live ? "green" : "amber"}>{live ? "Live data" : "Not connected"}</Badge>
       </div>
 
-      <PostsClient initial={posts} />
+      <PostsClient initial={recent} />
     </div>
   );
 }

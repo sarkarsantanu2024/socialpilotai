@@ -213,7 +213,7 @@ export async function fetchPageData(
   const [reels, photos, videos] = await Promise.all([
     getEdge("video_reels", `id,description,created_time,permalink_url,picture,thumbnails{uri},${vEngage}`),
     getEdge("photos", `id,name,created_time,images,link,${engage}`, "&type=uploaded"),
-    getEdge("videos", `id,description,created_time,picture,permalink_url,${vEngage}`),
+    getEdge("videos", `id,description,created_time,picture,thumbnails{uri},permalink_url,${vEngage}`),
   ]);
 
   // Normalise every edge into one shape with a forced __kind, then dedupe by id
@@ -244,7 +244,7 @@ export async function fetchPageData(
   }
   for (const p of reels) add({ id: p.id, message: p.description, created_time: p.created_time, full_picture: p.picture ?? p.thumbnails?.data?.[0]?.uri ?? "", permalink_url: p.permalink_url, reactions: p.likes, comments: p.comments, __kind: "reel" });
   for (const p of photos) add({ id: p.id, message: p.name, created_time: p.created_time, full_picture: p.images?.[0]?.source ?? "", permalink_url: p.link, shares: p.shares, reactions: p.reactions, comments: p.comments, __kind: "image" });
-  for (const p of videos) add({ id: p.id, message: p.description, created_time: p.created_time, full_picture: p.picture ?? "", permalink_url: p.permalink_url, reactions: p.likes, comments: p.comments, __kind: "video" });
+  for (const p of videos) add({ id: p.id, message: p.description, created_time: p.created_time, full_picture: p.picture ?? p.thumbnails?.data?.[0]?.uri ?? "", permalink_url: p.permalink_url, reactions: p.likes, comments: p.comments, __kind: "video" });
 
   rows.sort((a, b) => String(b.created_time ?? "").localeCompare(String(a.created_time ?? "")));
 
