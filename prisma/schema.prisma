@@ -35,6 +35,7 @@ model Tenant {
   memberships    Membership[]  @relation("CenterMemberships")
   invites        Invite[]      @relation("CenterInvites")
   onboarded      Boolean       @default(false) // completed the setup wizard
+  autoPost       Boolean       @default(false) // opt-in: auto-generate & schedule weekly posts
 
   businessProfile BusinessProfile?
   brandKit        BrandKit?
