@@ -24,6 +24,7 @@ export async function publishPost(opts: {
   pageId: string;
   caption: string;
   assetUrl?: string;
+  assetUrls?: string[]; // multiple images → a single multi-photo (carousel) post
   scheduledAt?: string;
   pageToken?: string; // when present → publish for real via Graph API
 }): Promise<PublishResult> {
@@ -48,37 +49,43 @@ export async function publishPost(opts: {
     params.set("scheduled_publish_time", String(Math.floor(new Date(opts.scheduledAt!).getTime() / 1000)));
   }
 
-  let fbPostId: string;
-  if (opts.assetUrl) {
-    // Two-step so the image lands as a real TIMELINE feed story (not just a bare
-    // Photos-tab entry, which is what a direct POST /photos produces on the New
-    // Pages Experience): (1) upload the photo UNPUBLISHED, (2) attach it to a
-    // /feed post via attached_media. This makes app-published images show up in
-    // the page feed exactly like a native post.
-    //
-    // A public http(s) URL is passed by reference (`url`); an AI-generated
-    // data: URL is uploaded as raw bytes (`source`, multipart) so we never need
-    // external image hosting.
+  // Uploads ONE photo UNPUBLISHED and returns its media id. A public http(s) URL
+  // is passed by reference (`url`); an AI-generated data: URL is uploaded as raw
+  // bytes (`source`, multipart) so we never need external image hosting.
+  const uploadUnpublished = async (assetUrl: string): Promise<string> => {
     let upRes: Response;
-    if (opts.assetUrl.startsWith("data:")) {
-      const comma = opts.assetUrl.indexOf(",");
-      const mime = opts.assetUrl.slice(5, opts.assetUrl.indexOf(";")) || "image/png";
-      const bytes = Buffer.from(opts.assetUrl.slice(comma + 1), "base64");
+    if (assetUrl.startsWith("data:")) {
+      const comma = assetUrl.indexOf(",");
+      const mime = assetUrl.slice(5, assetUrl.indexOf(";")) || "image/png";
+      const bytes = Buffer.from(assetUrl.slice(comma + 1), "base64");
       const form = new FormData();
-      form.append("access_token", opts.pageToken);
+      form.append("access_token", opts.pageToken!);
       form.append("published", "false");
       form.append("source", new Blob([bytes], { type: mime }), "image.png");
       upRes = await fetch(`${base}/${opts.pageId}/photos`, { method: "POST", body: form });
     } else {
-      const upParams = new URLSearchParams({ access_token: opts.pageToken, url: opts.assetUrl, published: "false" });
+      const upParams = new URLSearchParams({ access_token: opts.pageToken!, url: assetUrl, published: "false" });
       upRes = await fetch(`${base}/${opts.pageId}/photos`, { method: "POST", body: upParams });
     }
     const upData = await upRes.json();
-    if (!upRes.ok || upData.error) {
-      throw new Error(upData.error?.message ?? "Facebook photo upload failed");
-    }
+    if (!upRes.ok || upData.error) throw new Error(upData.error?.message ?? "Facebook photo upload failed");
+    return upData.id as string;
+  };
+
+  // Images to attach: the explicit list (carousel) or the single assetUrl.
+  const media = (opts.assetUrls?.length ? opts.assetUrls : opts.assetUrl ? [opts.assetUrl] : []).filter(Boolean);
+
+  let fbPostId: string;
+  if (media.length) {
+    // Two-step so images land as a real TIMELINE feed story (not bare Photos-tab
+    // entries, which is what a direct POST /photos produces on the New Pages
+    // Experience): (1) upload each photo UNPUBLISHED, (2) attach them all to one
+    // /feed post via attached_media[0..n]. One image → a normal photo post;
+    // several → a native multi-photo (carousel) post.
+    const ids: string[] = [];
+    for (const url of media) ids.push(await uploadUnpublished(url));
     params.set("message", opts.caption);
-    params.set("attached_media[0]", JSON.stringify({ media_fbid: upData.id }));
+    ids.forEach((id, i) => params.set(`attached_media[${i}]`, JSON.stringify({ media_fbid: id })));
   } else {
     params.set("message", opts.caption);
   }

@@ -31,6 +31,7 @@ export async function POST(req: Request) {
       pageToken: page?.token,
       caption: body.caption ?? "",
       assetUrl: body.assetUrl,
+      assetUrls: Array.isArray(body.assetUrls) ? body.assetUrls : undefined,
       scheduledAt: body.scheduledAt,
     });
 
