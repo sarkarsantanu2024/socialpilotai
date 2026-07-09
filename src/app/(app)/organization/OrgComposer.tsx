@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import {
   Sparkles, Image as ImageIcon, Images, Film, Video, Upload, X, RefreshCw, Wand2, Hash,
-  Send, CalendarClock, FileEdit, Check, AlertTriangle, Building2,
+  Send, CalendarClock, Check, AlertTriangle, Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useBrand } from "@/lib/brand/store";
@@ -11,7 +11,7 @@ import { AiStatus } from "@/components/ui/AiStatus";
 import type { BusinessType, PostType, PostVariation } from "@/lib/types";
 
 type Center = { id: string; name: string; city: string; type: string; connected: boolean };
-type Mode = "publish" | "schedule" | "draft";
+type Mode = "publish" | "schedule";
 type FormatKey = "single" | "carousel" | "reel" | "video";
 
 type CenterResult = { centerId: string; name: string; status: string; reason?: string; permalink?: string; pageName?: string };
@@ -130,7 +130,6 @@ export function OrgComposer({ centers, setMsg }: { centers: Center[]; setMsg: (m
   }
 
   const primaryImage: string | undefined = fmt.kind === "image" ? (upload?.preview ?? images[0]) : undefined;
-  const httpImage = fmt.kind === "image" ? images.find((u) => u.startsWith("http")) : undefined;
   // Send the actual visible image to publish (http stock, or AI/upload data-URL — FB accepts bytes).
   const assetForSend = fmt.kind === "image" ? (upload?.preview ?? images[0]) : undefined;
 
@@ -146,38 +145,23 @@ export function OrgComposer({ centers, setMsg }: { centers: Center[]; setMsg: (m
     setBusy(true);
     setResults(null);
     try {
-      if (mode === "draft") {
-        // Delegation: hand branches an editable draft they customise & publish.
-        const res = await fetch("/api/content-push", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: result?.title ?? caption.slice(0, 48),
-            caption, hashtags: tagList, type: fmt.postType,
-            assetUrl: httpImage, centerIds, suggestedAt: when || undefined,
-          }),
-        });
-        const d = await res.json().catch(() => ({}));
-        if (res.ok) setMsg(`Sent as a draft to ${d.pushed} center${d.pushed === 1 ? "" : "s"} — they'll customise & publish.`);
-        else setMsg(d.error ?? "Couldn't send drafts.");
+      // Direct publish / schedule to each branch's Page.
+      const res = await fetch("/api/content-push/publish", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: result?.title ?? caption.slice(0, 48),
+          caption, hashtags: tagList, type: fmt.postType,
+          assetUrl: assetForSend, centerIds,
+          scheduledAt: mode === "schedule" && when ? new Date(when).toISOString() : undefined,
+        }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setResults(d.results ?? []);
+        const verb = mode === "schedule" ? "Scheduled" : "Published";
+        setMsg(`${verb} to ${d.published + d.scheduled} center${d.published + d.scheduled === 1 ? "" : "s"}${d.skipped ? ` · ${d.skipped} skipped (no Page)` : ""}${d.failed ? ` · ${d.failed} failed` : ""}.`);
       } else {
-        // Direct publish / schedule to each branch's Page.
-        const res = await fetch("/api/content-push/publish", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: result?.title ?? caption.slice(0, 48),
-            caption, hashtags: tagList, type: fmt.postType,
-            assetUrl: assetForSend, centerIds,
-            scheduledAt: mode === "schedule" && when ? new Date(when).toISOString() : undefined,
-          }),
-        });
-        const d = await res.json().catch(() => ({}));
-        if (res.ok) {
-          setResults(d.results ?? []);
-          const verb = mode === "schedule" ? "Scheduled" : "Published";
-          setMsg(`${verb} to ${d.published + d.scheduled} center${d.published + d.scheduled === 1 ? "" : "s"}${d.skipped ? ` · ${d.skipped} skipped (no Page)` : ""}${d.failed ? ` · ${d.failed} failed` : ""}.`);
-        } else {
-          setMsg(d.error ?? "Publish failed.");
-        }
+        setMsg(d.error ?? "Publish failed.");
       }
     } catch {
       setMsg("Network error — please try again.");
@@ -334,18 +318,16 @@ export function OrgComposer({ centers, setMsg }: { centers: Center[]; setMsg: (m
           <div className="space-y-1.5">
             <ModeRow icon={Send} title="Publish now" desc="Goes live on each branch's Facebook Page immediately." active={mode === "publish"} onClick={() => setMode("publish")} />
             <ModeRow icon={CalendarClock} title="Schedule" desc="Publishes to the branch Pages at a time you set." active={mode === "schedule"} onClick={() => setMode("schedule")} />
-            <ModeRow icon={FileEdit} title="Send as draft to branches" desc="Branches get an editable draft to customise & publish themselves." active={mode === "draft"} onClick={() => setMode("draft")} />
           </div>
 
           {mode === "schedule" && (
             <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} className="input text-sm" />
           )}
 
-          {/* Only direct publish/schedule needs a connected Page. */}
-          {mode !== "draft" && unconnected.length > 0 && (
+          {unconnected.length > 0 && (
             <p className="flex items-start gap-1.5 rounded-lg bg-amber-50 px-2.5 py-2 text-[11px] text-amber-700">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              {unconnected.length} of {targetCenters.length} selected {unconnected.length === 1 ? "center has" : "centers have"} no Facebook Page — they&apos;ll be skipped. Connect their Page first, or use “Send as draft”.
+              {unconnected.length} of {targetCenters.length} selected {unconnected.length === 1 ? "center has" : "centers have"} no Facebook Page — they&apos;ll be skipped. Connect their Page first.
             </p>
           )}
 
@@ -354,7 +336,6 @@ export function OrgComposer({ centers, setMsg }: { centers: Center[]; setMsg: (m
               <>
                 {mode === "publish" && <><Send className="h-4 w-4" /> Publish to {targetCenters.length} center{targetCenters.length === 1 ? "" : "s"}</>}
                 {mode === "schedule" && <><CalendarClock className="h-4 w-4" /> Schedule for {targetCenters.length} center{targetCenters.length === 1 ? "" : "s"}</>}
-                {mode === "draft" && <><FileEdit className="h-4 w-4" /> Send draft to {targetCenters.length} center{targetCenters.length === 1 ? "" : "s"}</>}
               </>
             )}
           </button>

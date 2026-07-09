@@ -1,6 +1,6 @@
 // Cross-center performance roll-up for an HO / super-admin: one row per center
-// with real DB metrics (published posts, pending approvals, leads, FB status).
-// Aggregated with groupBy so it's a handful of queries, not N-per-center.
+// with real DB metrics (published posts, leads, FB status). Aggregated with
+// groupBy so it's a handful of queries, not N-per-center.
 import "server-only";
 import { prisma } from "@/lib/db";
 import { canAdminOrg, primaryOrgId } from "@/lib/org";
@@ -17,16 +17,14 @@ export async function getRollup(user: MinUser, orgId?: string) {
     orderBy: { createdAt: "asc" },
   });
   const ids = centers.map((c) => c.id);
-  if (!ids.length) return { centers: [], totals: { centers: 0, published: 0, pending: 0, leads: 0, connected: 0 } };
+  if (!ids.length) return { centers: [], totals: { centers: 0, published: 0, leads: 0, connected: 0 } };
 
-  const [pubRows, pendRows, leadRows, connRows] = await Promise.all([
+  const [pubRows, leadRows, connRows] = await Promise.all([
     prisma.post.groupBy({ by: ["tenantId"], where: { tenantId: { in: ids }, status: "published" }, _count: { _all: true } }),
-    prisma.post.groupBy({ by: ["tenantId"], where: { tenantId: { in: ids }, approvalStatus: "pending" }, _count: { _all: true } }),
     prisma.lead.groupBy({ by: ["tenantId"], where: { tenantId: { in: ids } }, _count: { _all: true } }),
     prisma.connectedPage.findMany({ where: { tenantId: { in: ids }, connected: true }, select: { tenantId: true } }),
   ]);
   const pub = Object.fromEntries(pubRows.map((r) => [r.tenantId, r._count._all]));
-  const pend = Object.fromEntries(pendRows.map((r) => [r.tenantId, r._count._all]));
   const lds = Object.fromEntries(leadRows.map((r) => [r.tenantId, r._count._all]));
   const conn = new Set(connRows.map((r) => r.tenantId));
 
@@ -35,7 +33,6 @@ export async function getRollup(user: MinUser, orgId?: string) {
     name: c.businessProfile?.name ?? c.name ?? "Untitled center",
     city: c.businessProfile?.city ?? "",
     published: pub[c.id] ?? 0,
-    pending: pend[c.id] ?? 0,
     leads: lds[c.id] ?? 0,
     connected: conn.has(c.id),
   }));
@@ -45,7 +42,6 @@ export async function getRollup(user: MinUser, orgId?: string) {
     totals: {
       centers: rows.length,
       published: rows.reduce((s, r) => s + r.published, 0),
-      pending: rows.reduce((s, r) => s + r.pending, 0),
       leads: rows.reduce((s, r) => s + r.leads, 0),
       connected: rows.filter((r) => r.connected).length,
     },
