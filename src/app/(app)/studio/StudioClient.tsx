@@ -113,8 +113,11 @@ export function StudioClient() {
   const [showSchedule, setShowSchedule] = useState(false);
   // Bumped each generate so swiped slides remount with fresh image load state.
   const [genKey, setGenKey] = useState(0);
-  // Own creative the user uploads: data URL preview for images, file name for clips.
-  const [upload, setUpload] = useState<{ name: string; preview: string | null } | null>(null);
+  // Own creative the user uploads. Images: one or more data-URLs (a carousel can
+  // take one per slide). Video/reel: a single clip (name only, no preview).
+  const [imgs, setImgs] = useState<string[]>([]);
+  const [clip, setClip] = useState<{ name: string } | null>(null);
+  const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   // Real AI (Imagen) image generation — Pro feature.
   const [aiImg, setAiImg] = useState<{ busy: boolean; msg: string | null; upgrade: boolean }>({ busy: false, msg: null, upgrade: false });
@@ -140,7 +143,7 @@ export function StudioClient() {
       if (res.ok && data.image) {
         // Use the AI image as the (first) slide; it publishes to FB via byte upload.
         setImages((prev) => [data.image, ...prev.filter((u) => u !== data.image)]);
-        setUpload(null);
+        setImgs([]);
         setGenKey((k) => k + 1);
         setAiImg({ busy: false, msg: "AI image ready", upgrade: false });
       } else {
@@ -154,19 +157,56 @@ export function StudioClient() {
   const fmt = FORMATS.find((f) => f.key === format)!;
   const isVideo = fmt.kind === "video";
   const accept = isVideo ? "video/*" : "image/*";
+  const maxImgs = fmt.slides; // 1 for single image, N for a carousel
   const ideas = IDEAS_BY_TYPE[profile.type] ?? IDEAS_BY_TYPE.coaching;
 
-  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.type.startsWith("image/")) {
-      const reader = new FileReader();
-      reader.onload = () => setUpload({ name: file.name, preview: reader.result as string });
-      reader.readAsDataURL(file);
-    } else {
-      setUpload({ name: file.name, preview: null });
+  // Add dropped/picked files. Video: take one clip. Images: read as data-URLs and
+  // append up to the format's slide count (so a carousel gets one image per slide).
+  function addFiles(files: FileList | File[] | null) {
+    const list = files ? Array.from(files) : [];
+    if (!list.length) return;
+    if (isVideo) {
+      const f = list.find((x) => x.type.startsWith("video/")) ?? list[0];
+      setClip({ name: f.name });
+      return;
     }
+    const picked = list.filter((f) => f.type.startsWith("image/"));
+    if (!picked.length) return;
+    Promise.all(
+      picked.map(
+        (f) =>
+          new Promise<string>((resolve) => {
+            const r = new FileReader();
+            r.onload = () => resolve(r.result as string);
+            r.readAsDataURL(f);
+          })
+      )
+    ).then((urls) => {
+      setImgs((prev) => [...prev, ...urls].slice(0, maxImgs));
+      setGenKey((k) => k + 1);
+    });
+  }
+
+  function onFileInput(e: React.ChangeEvent<HTMLInputElement>) {
+    addFiles(e.target.files);
     e.target.value = ""; // allow re-selecting the same file
+  }
+
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    addFiles(e.dataTransfer.files);
+  }
+  function onDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    if (!dragOver) setDragOver(true);
+  }
+  function onDragLeave() {
+    setDragOver(false);
+  }
+  function removeImg(i: number) {
+    setImgs((prev) => prev.filter((_, idx) => idx !== i));
+    setGenKey((k) => k + 1);
   }
 
   async function generate() {
@@ -199,10 +239,19 @@ export function StudioClient() {
     setLoading(false);
   }
 
-  // Image source for a given slide: own upload (slide 0) wins, else fetched stock.
+  // Image source for a given slide: the user's own uploaded image for that slide
+  // wins, else the fetched stock image (falling back to the first stock image).
   function slideImage(i: number): string | undefined {
-    if (upload?.preview && i === 0) return upload.preview;
-    return images[i] ?? images[0];
+    return imgs[i] ?? images[i] ?? images[0];
+  }
+
+  // Every slide's image, in order — what actually gets published (a carousel
+  // becomes a real multi-photo Facebook post).
+  function slideImages(): string[] {
+    if (fmt.kind !== "image") return [];
+    return Array.from({ length: fmt.slides }, (_, i) => slideImage(i)).filter(
+      (u): u is string => !!u
+    );
   }
 
   // Save the current variation as a draft in the tenant's Posts.
@@ -234,9 +283,11 @@ export function StudioClient() {
     if (!result) return;
     setPublishing(true);
     setPublished(null);
-    // The active image (stock http URL, or an AI/uploaded data-URL). Facebook
+    // The images to publish (stock http URLs, or AI/uploaded data-URLs). Facebook
     // accepts both (data-URLs upload as bytes); Instagram needs a public URL.
-    const primaryImage = fmt.kind === "image" ? slideImage(0) : undefined;
+    // A carousel sends all slide images → a real multi-photo post.
+    const allImages = slideImages();
+    const primaryImage = allImages[0];
     const caption = `${result.caption}\n\n${result.hashtags.join(" ")}`;
     try {
       const res = await fetch("/api/publish", {
@@ -245,6 +296,7 @@ export function StudioClient() {
         body: JSON.stringify({
           caption,
           assetUrl: primaryImage,
+          assetUrls: allImages,
           scheduledAt: when || undefined,
           title: result.title,
           type: fmt.postType,
@@ -291,7 +343,8 @@ export function StudioClient() {
                   key={f.key}
                   onClick={() => {
                     setFormat(f.key);
-                    setUpload(null);
+                    setImgs([]);
+                    setClip(null);
                   }}
                   className={cn(
                     "rounded-xl border p-3 text-left transition",
@@ -307,67 +360,103 @@ export function StudioClient() {
             })}
           </div>
 
-          {/* One hidden picker, reused for clips and own creatives */}
-          <input ref={fileRef} type="file" accept={accept} onChange={onFile} className="hidden" />
+          {/* One hidden picker, reused for clips and own creatives. Allows
+              selecting several files at once for a multi-slide carousel. */}
+          <input ref={fileRef} type="file" accept={accept} multiple={!isVideo && maxImgs > 1} onChange={onFileInput} className="hidden" />
 
-          {/* Uploaded file preview (image or clip) */}
-          {upload && (
+          {/* Uploaded images (one thumbnail per slide for a carousel) */}
+          {!isVideo && imgs.length > 0 && (
+            <div className="mt-4">
+              <div className="grid grid-cols-3 gap-2">
+                {imgs.map((src, i) => (
+                  <div key={`${i}-${genKey}`} className="group relative aspect-square overflow-hidden rounded-lg ring-1 ring-ink-200">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={src} alt="" className="h-full w-full object-cover" />
+                    {maxImgs > 1 && (
+                      <span className="absolute left-1 top-1 rounded bg-black/60 px-1 text-[10px] font-semibold text-white">{i + 1}</span>
+                    )}
+                    <button
+                      onClick={() => removeImg(i)}
+                      className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded bg-black/60 text-white opacity-0 transition group-hover:opacity-100"
+                      aria-label="Remove image"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-1.5 text-[11px] text-ink-400">
+                {maxImgs > 1
+                  ? `${imgs.length}/${maxImgs} images — one per slide, in this order.`
+                  : "Your image — used instead of the AI design."}
+              </p>
+            </div>
+          )}
+
+          {/* Uploaded clip (video/reel) */}
+          {isVideo && clip && (
             <div className="mt-4 flex items-center gap-3 rounded-xl border border-ink-200 bg-white p-2.5">
-              {upload.preview ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={upload.preview} alt={upload.name} className="h-12 w-12 shrink-0 rounded-lg object-cover ring-1 ring-ink-200" />
-              ) : (
-                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-ink-100 text-ink-400">
-                  <Film className="h-5 w-5" />
-                </span>
-              )}
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-ink-100 text-ink-400">
+                <Film className="h-5 w-5" />
+              </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{upload.name}</p>
-                <p className="text-[11px] text-ink-400">
-                  {upload.preview ? "Your image — used instead of the AI design" : "Your clip"}
-                </p>
+                <p className="truncate text-sm font-medium">{clip.name}</p>
+                <p className="text-[11px] text-ink-400">Your clip</p>
               </div>
               <button
-                onClick={() => setUpload(null)}
+                onClick={() => setClip(null)}
                 className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-ink-400 hover:bg-ink-100 hover:text-ink-700"
-                aria-label="Remove upload"
+                aria-label="Remove clip"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
           )}
 
-          {/* Mandatory clip upload for reel/video */}
-          {isVideo && !upload && (
-            <div className="mt-4 rounded-xl border-2 border-dashed border-ink-200 bg-ink-50 p-5 text-center">
+          {/* Drag-&-drop upload — clip for video, image(s) for image formats */}
+          {isVideo && !clip && (
+            <div
+              onDrop={onDrop}
+              onDragOver={onDragOver}
+              onDragLeave={onDragLeave}
+              className={cn(
+                "mt-4 rounded-xl border-2 border-dashed p-5 text-center transition",
+                dragOver ? "border-brand-400 bg-brand-50" : "border-ink-200 bg-ink-50"
+              )}
+            >
               <Upload className="mx-auto h-6 w-6 text-ink-400" />
-              <p className="mt-2 text-sm font-medium">Upload your {fmt.label.toLowerCase()} clip</p>
-              <p className="text-xs text-ink-400">
+              <p className="mt-2 text-sm font-medium">Drag &amp; drop your {fmt.label.toLowerCase()} clip, or</p>
+              <button onClick={() => fileRef.current?.click()} className="btn-ghost mt-2 text-xs">Choose file</button>
+              <p className="mt-2 text-xs text-ink-400">
                 The platform doesn&apos;t generate video — you provide the clip, we
                 produce the caption, hashtags &amp; music.
               </p>
-              <button onClick={() => fileRef.current?.click()} className="btn-ghost mt-3 text-xs">
-                Choose file
-              </button>
             </div>
           )}
 
-          {/* Optional own-creative upload for image formats */}
-          {!isVideo && !upload && (
-            <button
-              onClick={() => fileRef.current?.click()}
-              className="mt-4 flex w-full items-center gap-2 rounded-xl border border-dashed border-ink-200 bg-ink-50 p-3 text-left transition hover:border-brand-300 hover:bg-brand-50"
+          {!isVideo && imgs.length < maxImgs && (
+            <div
+              onDrop={onDrop}
+              onDragOver={onDragOver}
+              onDragLeave={onDragLeave}
+              className={cn(
+                "mt-4 rounded-xl border-2 border-dashed p-4 text-center transition",
+                dragOver ? "border-brand-400 bg-brand-50" : "border-ink-200 bg-ink-50 hover:border-brand-300 hover:bg-brand-50"
+              )}
             >
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white text-ink-400 ring-1 ring-ink-200">
-                <Upload className="h-4 w-4" />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-sm font-medium">Upload your own image</span>
-                <span className="block text-[11px] leading-tight text-ink-400">
-                  AI design not right? Use your own creative — we still write the caption &amp; hashtags.
-                </span>
-              </span>
-            </button>
+              <Upload className="mx-auto h-6 w-6 text-ink-400" />
+              <p className="mt-2 text-sm font-medium">
+                {maxImgs > 1 ? "Drag & drop your images, or" : "Drag & drop your image, or"}
+              </p>
+              <button onClick={() => fileRef.current?.click()} className="btn-ghost mt-2 text-xs">
+                {imgs.length > 0 ? "Add more" : "Choose file"}
+              </button>
+              <p className="mt-2 text-[11px] leading-tight text-ink-400">
+                {maxImgs > 1
+                  ? `Use your own creatives — up to ${maxImgs}, one per slide. We still write the caption & hashtags.`
+                  : "AI design not right? Use your own creative — we still write the caption & hashtags."}
+              </p>
+            </div>
           )}
 
           <div className="mt-4">
@@ -478,13 +567,13 @@ export function StudioClient() {
                       image={slideImage(i)}
                       title={i === 0 ? result.title : undefined}
                       cta={i === 0 ? result.cta : undefined}
-                      badge={i === 0 ? (upload?.preview ? "Your creative" : kit.logoText) : `${i + 1}/${fmt.slides}`}
-                      showLogo={i === 0 && !upload?.preview}
+                      badge={imgs[i] ? "Your creative" : i === 0 ? kit.logoText : `${i + 1}/${fmt.slides}`}
+                      showLogo={i === 0 && !imgs[i]}
                     />
                   ))}
                 </div>
               ) : (
-                <ClipPreview ratio={fmt.ratio} upload={upload} title={result.title} cta={result.cta} onPick={() => fileRef.current?.click()} />
+                <ClipPreview ratio={fmt.ratio} clip={clip} title={result.title} cta={result.cta} onPick={() => fileRef.current?.click()} />
               )}
             </div>
 
@@ -661,19 +750,19 @@ function Slide({
 // Video/Reel visual: the user's clip (or an upload prompt) framed at FB size.
 function ClipPreview({
   ratio,
-  upload,
+  clip,
   title,
   cta,
   onPick,
 }: {
   ratio: string;
-  upload: { name: string; preview: string | null } | null;
+  clip: { name: string } | null;
   title: string;
   cta: string;
   onPick: () => void;
 }) {
   const { kit } = useBrand().brand;
-  if (!upload) {
+  if (!clip) {
     return (
       <button
         onClick={onPick}
@@ -704,7 +793,7 @@ function ClipPreview({
         <span className="mt-2 inline-block rounded-md px-2.5 py-1 text-xs font-bold text-ink-900" style={{ background: kit.accent }}>
           {cta}
         </span>
-        <p className="mt-2 truncate text-[11px] text-white/70">🎬 {upload.name}</p>
+        <p className="mt-2 truncate text-[11px] text-white/70">🎬 {clip.name}</p>
       </div>
     </div>
   );
