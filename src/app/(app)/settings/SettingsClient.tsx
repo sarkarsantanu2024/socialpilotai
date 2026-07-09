@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Facebook, Check, Building2, Palette, Link2, CreditCard, ShieldCheck, Upload, X, Loader2, Plug } from "lucide-react";
+import { Facebook, Check, Building2, Palette, Link2, CreditCard, ShieldCheck, Upload, X, Loader2, Plug, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { useBrand } from "@/lib/brand/store";
 import type { BusinessType } from "@/lib/types";
@@ -26,7 +26,7 @@ export interface CenterDetails {
   address: string;
 }
 
-export function SettingsClient({ plan, details }: { plan: PlanInfo; details: CenterDetails }) {
+export function SettingsClient({ plan, details, autoPost }: { plan: PlanInfo; details: CenterDetails; autoPost: boolean }) {
   const { brand, setProfile, setKit } = useBrand();
   const { profile, kit } = brand;
   const [saved, setSaved] = useState(false);
@@ -241,9 +241,60 @@ export function SettingsClient({ plan, details }: { plan: PlanInfo; details: Cen
           </div>
         </section>
 
+        <AutoPostCard initial={autoPost} />
+
         <PlanCard plan={plan} />
       </div>
     </div>
+  );
+}
+
+// Opt-in weekly auto-content for THIS center. Off by default; when on, the plan
+// cron schedules the week's posts ahead for review.
+function AutoPostCard({ initial }: { initial: boolean }) {
+  const [on, setOn] = useState(initial);
+  const [saving, setSaving] = useState(false);
+
+  async function toggle() {
+    const next = !on;
+    setOn(next);
+    setSaving(true);
+    try {
+      const res = await fetch("/api/center/autopost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autoPost: next }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!d.ok) setOn(!next); // revert on failure
+    } catch {
+      setOn(!next);
+    }
+    setSaving(false);
+  }
+
+  return (
+    <section className="card p-5">
+      <div className="mb-1 flex items-center gap-2">
+        <Sparkles className="h-5 w-5 text-brand-500" />
+        <h2 className="font-semibold">Auto-posting</h2>
+      </div>
+      <p className="text-xs text-ink-400">
+        2 AI posts a week (Wed &amp; Sat, 8&nbsp;PM) plus festival greetings, scheduled a few days ahead so you can
+        review, edit or delete them in <b>Posts → Scheduled</b> before they go live.
+      </p>
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <span className="text-sm font-medium">{on ? "On for this center" : "Off"}</span>
+        <button
+          onClick={toggle}
+          disabled={saving}
+          aria-pressed={on}
+          className={cn("relative h-6 w-11 shrink-0 rounded-full transition disabled:opacity-60", on ? "bg-brand-600" : "bg-ink-300")}
+        >
+          <span className={cn("absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all", on ? "left-[22px]" : "left-0.5")} />
+        </button>
+      </div>
+    </section>
   );
 }
 

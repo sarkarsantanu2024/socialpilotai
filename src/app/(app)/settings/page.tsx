@@ -25,6 +25,7 @@ export default async function SettingsPage() {
         subtitle="Your business profile and brand kit power every AI generation. Manage your Facebook connection and plan here."
       />
       <SettingsClient
+        autoPost={tenant.autoPost}
         plan={{
           plan: tenant.plan,
           status: tenant.planStatus,
