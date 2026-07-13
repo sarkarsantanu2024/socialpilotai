@@ -14,7 +14,10 @@ export interface GenerateInput {
   tone?: string;
 }
 
-const TEXT_MODEL = process.env.GEMINI_TEXT_MODEL ?? "gemini-2.0-flash";
+// gemini-2.5-flash is a big jump over 2.0-flash for vernacular (Bengali/Hindi)
+// fluency and local tone at similar cost/latency. Set GEMINI_TEXT_MODEL=
+// gemini-2.5-pro for maximum quality (slower, pricier) if you prefer.
+const TEXT_MODEL = process.env.GEMINI_TEXT_MODEL ?? "gemini-2.5-flash";
 
 // ---- REAL GEMINI CALL --------------------------------------------
 
