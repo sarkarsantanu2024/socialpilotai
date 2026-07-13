@@ -9,8 +9,8 @@ so each justification below points at the exact on-screen step in the screencast
 - **App ID:** 3598064290334860
 - **Owner business (must own the app):** Nexvora Technologies — **Udyam: UDYAM-WB-10-021416**
 - **App admin:** Santanu Sarkar (sarkarsantanu69@gmail.com)
-- **App URL:** https://socialpilotai-bay.vercel.app
-- **Privacy Policy:** https://socialpilotai-bay.vercel.app/privacy
+- **App URL:** https://nexvoratechnologies.co.in
+- **Privacy Policy:** https://nexvoratechnologies.co.in/privacy
 - **Category:** Business / Social media management
 - **Platform:** Web
 
@@ -47,8 +47,8 @@ owned elsewhere throws an "unexpected technical issue"):
 
 3. **App not in demo mode in production** — Vercel env `NEXT_PUBLIC_DEMO_MODE=false` (else the live
    Facebook features are disabled and the reviewer can't test them).
-4. **Valid OAuth redirect URI** added: `https://socialpilotai-bay.vercel.app/api/auth/facebook/callback`
-   (Facebook Login → Settings), and App Domain `socialpilotai-bay.vercel.app` (Settings → Basic).
+4. **Valid OAuth redirect URI** added: `https://nexvoratechnologies.co.in/api/auth/facebook/callback`
+   (Facebook Login → Settings), and App Domain `nexvoratechnologies.co.in` (Settings → Basic).
 5. **App icon (1024×1024), display name, and Privacy Policy + Terms URLs** filled in (Settings → Basic).
 6. **A test Facebook Page** you control, ideally with a **linked Instagram Business account** (needed to
    demonstrate the two `instagram_*` permissions). If you have no IG account to show, submit the
@@ -135,7 +135,7 @@ account that manages a real test Page** (with a linked IG account if showing Ins
 publish a post to it, and show the Page's engagement — demonstrating each requested permission."
 
 **[00:08] Start the connect flow:**
-- Go to `https://socialpilotai-bay.vercel.app`, log in to the SocialPilot demo account (creds in §4).
+- Go to `https://nexvoratechnologies.co.in`, log in to the SocialPilot demo account (creds in §4).
 - Open **Organization → Overview → Facebook connections** and click **Connect** next to a center
   (or open a `/connect/<link>` page and click **Connect with Facebook**).
 
@@ -182,7 +182,7 @@ publish a post to it, and show the Page's engagement — demonstrating each requ
 
 ## 4. Reviewer test instructions (paste in "Instructions for reviewer")
 
-> 1. Go to https://socialpilotai-bay.vercel.app and log in:
+> 1. Go to https://nexvoratechnologies.co.in and log in:
 >    - Username: `<REVIEWER_TEST_USERNAME>`
 >    - Password: `<REVIEWER_TEST_PASSWORD>`
 > 2. Open **Organization → Overview → Facebook connections** and click **Connect** next to a center
@@ -214,7 +214,7 @@ connect link** (they expire in 14 days) right before you submit.
   user's account. We never store Facebook passwords.
 - **Retention/deletion:** the user can disconnect at any time (Settings → disconnect), which deletes the
   stored tokens. Data handling follows our Privacy Policy:
-  https://socialpilotai-bay.vercel.app/privacy
+  https://nexvoratechnologies.co.in/privacy
 - **No sharing:** Page data is not sold or shared with third parties.
 
 ---
