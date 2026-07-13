@@ -6,6 +6,9 @@ permission in use. Reviewers reject vague answers and videos that don't *show th
 so each justification below points at the exact on-screen step in the screencast.
 
 - **App name:** SocialPilot AI
+- **App ID:** 3598064290334860
+- **Owner business (must own the app):** Nexvora Technologies — **Udyam: UDYAM-WB-10-021416**
+- **App admin:** Santanu Sarkar (sarkarsantanu69@gmail.com)
 - **App URL:** https://socialpilotai-bay.vercel.app
 - **Privacy Policy:** https://socialpilotai-bay.vercel.app/privacy
 - **Category:** Business / Social media management
@@ -13,21 +16,52 @@ so each justification below points at the exact on-screen step in the screencast
 
 ---
 
-## 0. Before you submit (pre-requisites — do these first)
+## 0. Before you submit (pre-requisites — do these IN ORDER)
 
-App Review fails instantly if these aren't in place:
+App Review fails instantly if these aren't in place. Do §0.1 → §0.2 first; the app's
+owning business is what gets verified, so it must be Nexvora Technologies BEFORE you verify.
 
-1. **Business Verification** — App Dashboard → Settings → Basic → complete Business Verification.
-   `pages_manage_posts` requires Advanced Access, which requires a verified business.
-2. **App not in demo mode in production** — Vercel env `NEXT_PUBLIC_DEMO_MODE=false` (else the live
+### 0.1 Put the app under the right business (Nexvora Technologies)
+
+The app must be owned by **your product company, Nexvora Technologies** — not a client
+portfolio (e.g. MindMantra Abacus). An app can belong to only ONE business at a time, so
+**remove it from the old business first, then add it to Nexvora** (claiming while it's still
+owned elsewhere throws an "unexpected technical issue"):
+
+1. Old business portfolio → **Settings → Accounts → Apps → Social Pilot → ⋯ / Remove**.
+2. **Nexvora Technologies → Settings → Accounts → Apps → Add** → App ID `3598064290334860` → **Add App**.
+3. Verify: App Dashboard → Social Pilot → "Business:" reads **Nexvora Technologies**.
+
+### 0.2 Business Verification (verify Nexvora with Udyam)
+
+`pages_manage_posts` needs Advanced Access, which needs a **verified business**. It's the
+**company** that's verified, not your personal profile — you're just the admin who submits it.
+
+1. **Nexvora Technologies → Settings → Security Centre → Start verification**
+   (or the "Authorisations and verifications" link).
+2. Enter the business details **exactly as printed on the Udyam certificate**
+   (legal name *Nexvora Technologies*, address, phone) → upload **UDYAM-WB-10-021416** →
+   verify by phone OTP. Review takes ~2–5 business days.
+
+### 0.3 Everything else
+
+3. **App not in demo mode in production** — Vercel env `NEXT_PUBLIC_DEMO_MODE=false` (else the live
    Facebook features are disabled and the reviewer can't test them).
-3. **Valid OAuth redirect URI** added: `https://socialpilotai-bay.vercel.app/api/auth/facebook/callback`
+4. **Valid OAuth redirect URI** added: `https://socialpilotai-bay.vercel.app/api/auth/facebook/callback`
    (Facebook Login → Settings), and App Domain `socialpilotai-bay.vercel.app` (Settings → Basic).
-4. **App icon (1024×1024), display name, and Privacy Policy + Terms URLs** filled in (Settings → Basic).
-5. **A test Facebook Page** you control, ideally with a **linked Instagram Business account** (needed to
+5. **App icon (1024×1024), display name, and Privacy Policy + Terms URLs** filled in (Settings → Basic).
+6. **A test Facebook Page** you control, ideally with a **linked Instagram Business account** (needed to
    demonstrate the two `instagram_*` permissions). If you have no IG account to show, submit the
    Instagram permissions in a separate round.
-6. **Screen recording** ≤ a few minutes, in English, showing the full flow (script in §3).
+7. **Screen recording** ≤ a few minutes, in English, showing the full flow (script in §3).
+
+### 0.4 Roles — you are the ADMIN, not a tester
+
+Your own role on the app is **Administrator** (App Dashboard → App roles → Roles). "Testers" are
+the **branch owners you invite** so they can connect their Page while the app is still *In
+development*. You never become a tester. Once the app is **Published (Live)** after this review,
+Development-mode limits disappear and the WhatsApp self-connect link works for **any** branch owner —
+no tester role needed at all.
 
 ---
 
