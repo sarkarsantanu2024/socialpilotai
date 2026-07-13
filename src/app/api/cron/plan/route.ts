@@ -10,6 +10,7 @@ import {
   POST_HOUR_UTC,
   POST_MIN_UTC,
 } from "@/lib/autopost/strategy";
+import { posterConfigured, renderBrandedPoster } from "@/lib/design/poster";
 import type { BusinessProfile, BusinessType } from "@/lib/types";
 
 // Auto-content planner. An external scheduler (Vercel Cron) hits this daily; for
@@ -59,7 +60,7 @@ export async function GET(req: Request) {
   // that can't publish). Cap the centers scanned per run.
   const centers = await prisma.tenant.findMany({
     where: { autoPost: true, pages: { some: { connected: true } } },
-    include: { businessProfile: true },
+    include: { businessProfile: true, brandKit: true },
     take: 100,
   });
 
@@ -96,6 +97,20 @@ export async function GET(req: Request) {
       }
       if (!variation) continue;
 
+      // Background photo → optionally composed into a branded poster (Placid).
+      const bg = curatedStock(type, weekIndex(slot.at) + slot.at.getUTCDay());
+      let assetUrl: string | null = bg ?? null;
+      if (posterConfigured()) {
+        const poster = await renderBrandedPoster({
+          headline: variation.title,
+          subline: [bp.name, bp.city].filter(Boolean).join(" · "),
+          cta: variation.cta,
+          backgroundUrl: bg,
+          logoUrl: center.brandKit?.logoUrl ?? undefined,
+        });
+        if (poster) assetUrl = poster;
+      }
+
       await prisma.post.create({
         data: {
           tenantId: center.id,
@@ -106,7 +121,7 @@ export async function GET(req: Request) {
           title: variation.title.slice(0, 80) || "Scheduled post",
           caption: variation.caption,
           hashtags: variation.hashtags,
-          assetUrl: curatedStock(type, weekIndex(slot.at) + slot.at.getUTCDay()) ?? null,
+          assetUrl,
           scheduledAt: slot.at,
         },
       });
@@ -137,6 +152,18 @@ export async function GET(req: Request) {
         continue;
       }
 
+      const fbg = curatedStock(type, weekIndex(festAt));
+      let fAsset: string | null = fbg ?? null;
+      if (posterConfigured()) {
+        const poster = await renderBrandedPoster({
+          headline: post.title,
+          subline: [bp.name, bp.city].filter(Boolean).join(" · "),
+          backgroundUrl: fbg,
+          logoUrl: center.brandKit?.logoUrl ?? undefined,
+        });
+        if (poster) fAsset = poster;
+      }
+
       await prisma.post.create({
         data: {
           tenantId: center.id,
@@ -147,7 +174,7 @@ export async function GET(req: Request) {
           title: post.title.slice(0, 80) || `${fest.name} greetings`,
           caption: post.caption,
           hashtags: post.hashtags,
-          assetUrl: curatedStock(type, weekIndex(festAt)) ?? null,
+          assetUrl: fAsset,
           scheduledAt: festAt,
         },
       });
