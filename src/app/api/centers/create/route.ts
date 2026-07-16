@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/access";
 import { canAdminOrg, primaryOrgId, createCenter, bulkCreateCenters } from "@/lib/org";
+import { centerLimit } from "@/lib/plans";
+import { prisma } from "@/lib/db";
 import { audit } from "@/lib/audit";
 
 // Create one center, or many at once (bulk onboarding). Only the org's owner/HO
@@ -13,6 +15,24 @@ export async function POST(req: Request) {
   const orgId: string | null = body.orgId ?? primaryOrgId(user);
   if (!orgId) return NextResponse.json({ error: "No organization to add centers to." }, { status: 400 });
   if (!(await canAdminOrg(user, orgId))) return NextResponse.json({ error: "Not allowed." }, { status: 403 });
+
+  // Branch limit by plan: free & single = 1 branch, Head Office = many.
+  const org = await prisma.organization.findUnique({
+    where: { id: orgId },
+    select: { plan: true, _count: { select: { centers: true } } },
+  });
+  const limit = centerLimit(org?.plan);
+  const existing = org?._count.centers ?? 0;
+  const adding = Array.isArray(body.centers) ? body.centers.length : 1;
+  if (existing + adding > limit) {
+    return NextResponse.json(
+      {
+        error: `Your plan includes ${limit} branch${limit === 1 ? "" : "es"}. Upgrade to Head Office to add more branches.`,
+        upgrade: true,
+      },
+      { status: 403 }
+    );
+  }
 
   const actorName = user.name ?? user.username;
   try {
