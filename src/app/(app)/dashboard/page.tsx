@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/Badge";
 import { TrendChart } from "@/components/charts/TrendChart";
 import { BarMini } from "@/components/charts/BarMini";
 import { getClientData } from "@/lib/clientData";
+import { getCurrentTenant } from "@/lib/currentTenant";
 import { generateReport } from "@/lib/ai";
 import { compact, fmtDate } from "@/lib/utils";
 import { weeklyTrend, bestTimes as calcBestTimes, growthPct } from "@/lib/insights";
@@ -38,6 +39,10 @@ export default async function Dashboard() {
   // Proactively surface the next festival within ~6 weeks (festival auto-content).
   const nextFestival = upcomingFestivals(new Date(), 45, 1)[0] ?? null;
 
+  // Nudge new users into the (already-built) 3-step setup wizard until they finish it.
+  const tenant = await getCurrentTenant();
+  const needsSetup = tenant ? !tenant.onboarded : false;
+
   const topAnalytics = [...analytics].sort((a, b) => b.engagementRate - a.engagementRate)[0];
   const topPost = posts.find((p) => p.id === topAnalytics?.postId) ?? posts[0];
   const report = hasData
@@ -52,6 +57,25 @@ export default async function Dashboard() {
   return (
     <div className="space-y-6">
       <Greeting liveName={live ? page.name : null} />
+
+      {/* First-run nudge into the 3-step setup wizard (profile → connect → first post). */}
+      {needsSetup && (
+        <Link
+          href="/onboarding"
+          className="card flex items-center gap-3 border-brand-200 bg-brand-50/60 p-4 transition hover:bg-brand-50"
+        >
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-600 text-white">
+            <Sparkles className="h-5 w-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold">Finish setting up your workspace</p>
+            <p className="text-sm text-ink-500">
+              Complete your profile, connect Facebook, and publish your first AI post — about 3 minutes.
+            </p>
+          </div>
+          <ArrowRight className="h-5 w-5 shrink-0 text-brand-600" />
+        </Link>
+      )}
 
       {/* Stats — real values only; deltas shown only when we can compute them. */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
