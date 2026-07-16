@@ -10,7 +10,7 @@
 //   2) Head Office    — franchise HO managing all its branches (flat ₹/mo)
 //   3) Custom Center  — pick features, price computes live
 
-export type MarketingPlanId = "single" | "ho" | "custom";
+export type MarketingPlanId = "free" | "single" | "ho" | "custom";
 
 export interface MarketingPlan {
   id: MarketingPlanId;
@@ -22,6 +22,20 @@ export interface MarketingPlan {
   centersIncluded?: number;
   perExtraCenter?: number;
 }
+
+export const FREE_PLAN: MarketingPlan = {
+  id: "free",
+  name: "Free",
+  tagline: "Get started at no cost, forever",
+  price: 0,
+  features: [
+    "1 Facebook Page",
+    "AI captions, hashtags & post ideas",
+    "Schedule & publish",
+    "Engagement analytics (reactions, comments, shares)",
+    "Lead capture + 1-tap WhatsApp follow-up",
+  ],
+};
 
 export const SINGLE_CENTER: MarketingPlan = {
   id: "single",
@@ -64,7 +78,7 @@ export const CUSTOM_PLAN: MarketingPlan = {
 };
 
 /** Flat, fixed-price plans (excludes the custom builder). */
-export const FLAT_PLANS: MarketingPlan[] = [SINGLE_CENTER, HEAD_OFFICE];
+export const FLAT_PLANS: MarketingPlan[] = [FREE_PLAN, SINGLE_CENTER, HEAD_OFFICE];
 
 // ---- Custom builder ---------------------------------------------------------
 
@@ -100,6 +114,8 @@ export function customTotal(picked: string[]): number {
 /** Human label for a plan id — used to echo the choice into signup. */
 export function planLabel(id: string | null | undefined): string | null {
   switch (id) {
+    case "free":
+      return FREE_PLAN.name;
     case "single":
       return SINGLE_CENTER.name;
     case "ho":

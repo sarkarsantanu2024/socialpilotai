@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Check, Building2, Store, SlidersHorizontal } from "lucide-react";
+import { Check, Building2, Store, SlidersHorizontal, Gift } from "lucide-react";
 import { cn, inr } from "@/lib/utils";
 import {
   FLAT_PLANS,
@@ -15,6 +15,7 @@ import {
 
 // Icon per plan id (kept in the view layer, not the data catalog).
 const PLAN_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
+  free: Gift,
   single: Store,
   ho: Building2,
 };
@@ -36,10 +37,15 @@ export function Pricing() {
         Monthly plans for every kind of business. Start free for 14 days. Cancel anytime.
       </p>
 
-      <div className="mt-8 grid items-start gap-4 lg:grid-cols-3">
-        {/* 1 & 2 — flat plans */}
+      <div className="mt-8 grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Flat plans (Free, Single, Head Office) */}
         {FLAT_PLANS.map((plan) => (
-          <PlanCard key={plan.id} plan={plan} href={`/signup?plan=${plan.id}`} cta="Start free trial" />
+          <PlanCard
+            key={plan.id}
+            plan={plan}
+            href={`/signup?plan=${plan.id}`}
+            cta={plan.id === "free" ? "Get started free" : "Start free trial"}
+          />
         ))}
 
         {/* 3 — Custom (Center) with live price */}
