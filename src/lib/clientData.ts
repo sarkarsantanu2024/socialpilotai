@@ -77,12 +77,23 @@ export async function getClientData(): Promise<ClientData> {
       const real = await fetchPageData(fbPage.id, fbPage.token);
       // Merge: our DB posts + the Page's live posts, without duplicates.
       //  • drafts/scheduled → always from DB (not on Facebook yet)
-      //  • just-published posts → keep the DB copy until Facebook's API indexes it
-      //    (there's a few-minute lag), then the live copy dedupes it out by fbPostId.
+      //  • just-published posts → keep the DB copy only until Facebook's API indexes
+      //    it (a few-minute lag), then the live copy (which carries the real image)
+      //    replaces it. We match the live copy by fbPostId AND by a content
+      //    signature (caption start + day): the New Pages Experience often files an
+      //    API-published photo under a DIFFERENT id than the one we saved, so id-only
+      //    matching would leave the imageless DB copy showing as a placeholder next
+      //    to the real Facebook post.
       const realFbIds = new Set(real.posts.map((p) => p.fbPostId).filter(Boolean));
-      const dbExtra = bundle.posts.filter(
-        (p) => p.status !== "published" || (p.fbPostId ? !realFbIds.has(p.fbPostId) : true)
-      );
+      const norm = (s: string) => (s ?? "").replace(/\s+/g, " ").trim().toLowerCase().slice(0, 60);
+      const day = (d: string | Date | null | undefined) => (d ? new Date(d).toISOString().slice(0, 10) : "");
+      const realSigs = new Set(real.posts.map((p) => `${norm(p.caption)}|${day(p.publishedAt)}`));
+      const dbExtra = bundle.posts.filter((p) => {
+        if (p.status !== "published") return true; // drafts/scheduled aren't on FB yet
+        if (p.fbPostId && realFbIds.has(p.fbPostId)) return false; // matched by id
+        if (realSigs.has(`${norm(p.caption)}|${day(p.publishedAt)}`)) return false; // matched by content
+        return true; // no live copy yet (API indexing lag) → keep the DB copy for now
+      });
       const posts = [...dbExtra, ...real.posts];
       return {
         live: true,

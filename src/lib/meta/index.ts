@@ -187,7 +187,7 @@ export async function fetchPageData(
   // + comments so analytics has real counts for video content too.
   const vEngage = "comments.summary(true).limit(0),likes.summary(true).limit(0)";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const getEdge = async (edge: string, flds: string, extra = ""): Promise<any[]> => {
+  const getEdge = async (edge: string, flds: string, extra = "", retryFlds?: string): Promise<any[]> => {
     try {
       const res = await fetch(
         `${GRAPH}/${pageId}/${edge}?fields=${encodeURIComponent(flds)}&limit=25${extra}&access_token=${pageToken}`,
@@ -196,6 +196,10 @@ export async function fetchPageData(
       const json = await res.json();
       if (json.error) {
         console.warn(`[meta] ${edge} error:`, json.error.message);
+        // A requested field may be unsupported on this node (e.g. `shares` on a
+        // reel/video) — that fails the whole request. Retry once with a lean field
+        // set so we still get the posts (just without the optional field).
+        if (retryFlds) return getEdge(edge, retryFlds, extra);
         return [];
       }
       return json.data ?? [];
@@ -210,10 +214,14 @@ export async function fetchPageData(
   // OMITS image-only posts — and freshly API-published photos — from /feed, so
   // relying on feed alone hides them (the bug behind "only videos show" and
   // "my new posts aren't here"). We merge every edge and de-dupe below.
+  // Try `shares` on reels/videos too (feed already has it), retrying without it if
+  // Facebook rejects the field, so a reel's share count shows in analytics.
+  const reelFlds = `id,description,created_time,permalink_url,picture,thumbnails{uri},${vEngage}`;
+  const videoFlds = `id,description,created_time,picture,thumbnails{uri},permalink_url,${vEngage}`;
   const [reels, photos, videos] = await Promise.all([
-    getEdge("video_reels", `id,description,created_time,permalink_url,picture,thumbnails{uri},${vEngage}`),
+    getEdge("video_reels", `id,description,created_time,permalink_url,picture,thumbnails{uri},shares,${vEngage}`, "", reelFlds),
     getEdge("photos", `id,name,created_time,images,link,${engage}`, "&type=uploaded"),
-    getEdge("videos", `id,description,created_time,picture,thumbnails{uri},permalink_url,${vEngage}`),
+    getEdge("videos", `id,description,created_time,picture,thumbnails{uri},permalink_url,shares,${vEngage}`, "", videoFlds),
   ]);
 
   // Normalise every edge into one shape with a forced __kind, then dedupe by id
@@ -242,9 +250,9 @@ export async function fetchPageData(
     const mt = p.attachments?.data?.[0]?.media_type as string | undefined;
     add({ ...p, __kind: mt === "video" ? "video" : mt === "photo" || p.full_picture ? "image" : "text" });
   }
-  for (const p of reels) add({ id: p.id, message: p.description, created_time: p.created_time, full_picture: p.picture ?? p.thumbnails?.data?.[0]?.uri ?? "", permalink_url: p.permalink_url, reactions: p.likes, comments: p.comments, __kind: "reel" });
+  for (const p of reels) add({ id: p.id, message: p.description, created_time: p.created_time, full_picture: p.picture ?? p.thumbnails?.data?.[0]?.uri ?? "", permalink_url: p.permalink_url, shares: p.shares, reactions: p.likes, comments: p.comments, __kind: "reel" });
   for (const p of photos) add({ id: p.id, message: p.name, created_time: p.created_time, full_picture: p.images?.[0]?.source ?? "", permalink_url: p.link, shares: p.shares, reactions: p.reactions, comments: p.comments, __kind: "image" });
-  for (const p of videos) add({ id: p.id, message: p.description, created_time: p.created_time, full_picture: p.picture ?? p.thumbnails?.data?.[0]?.uri ?? "", permalink_url: p.permalink_url, reactions: p.likes, comments: p.comments, __kind: "video" });
+  for (const p of videos) add({ id: p.id, message: p.description, created_time: p.created_time, full_picture: p.picture ?? p.thumbnails?.data?.[0]?.uri ?? "", permalink_url: p.permalink_url, shares: p.shares, reactions: p.likes, comments: p.comments, __kind: "video" });
 
   rows.sort((a, b) => String(b.created_time ?? "").localeCompare(String(a.created_time ?? "")));
 

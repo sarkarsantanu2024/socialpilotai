@@ -55,7 +55,9 @@ export default async function Dashboard() {
 
       {/* Stats — real values only; deltas shown only when we can compute them. */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <StatCard label="Page reach (30d)" value={compact(totalReach)} delta={hasData && growth ? { value: `${Math.abs(growth)}%`, up: growth >= 0 } : undefined} icon={<Eye className="h-5 w-5" />} />
+        {/* Reach needs read_insights (not granted) → 0 for live pages; show "—" so
+            it doesn't read as a real zero. Demo pages still show their reach. */}
+        <StatCard label="Page reach" value={live && totalReach === 0 ? "—" : compact(totalReach)} delta={hasData && growth ? { value: `${Math.abs(growth)}%`, up: growth >= 0 } : undefined} icon={<Eye className="h-5 w-5" />} />
         <StatCard label="Avg engagement" value={`${avgEng.toFixed(1)}%`} icon={<Heart className="h-5 w-5" />} />
         <StatCard label="Leads captured" value={String(leads.length)} icon={<Users className="h-5 w-5" />} />
         <StatCard label="Posts published" value={String(posts.filter((p) => p.status === "published").length)} icon={<Megaphone className="h-5 w-5" />} />

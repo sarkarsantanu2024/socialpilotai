@@ -9,18 +9,14 @@ import {
   ArrowRight,
   Check,
 } from "lucide-react";
+import { Pricing } from "@/components/marketing/Pricing";
 
 const features = [
-  { icon: Sparkles, title: "AI Content Studio", desc: "Generate captions, titles, hashtags & music ideas in your brand voice." },
-  { icon: CalendarDays, title: "Schedule & Publish", desc: "Plan a month of Facebook posts and auto-publish on time." },
-  { icon: BarChart3, title: "Analytics", desc: "Reach, engagement & best-time insights with a plain-language report." },
-  { icon: Megaphone, title: "Ad Decisioning", desc: "AI tells you which post to promote — you approve, it runs (paused)." },
-  { icon: Users, title: "Leads", desc: "Collect enquiries and manage every lead in one place — with one-tap WhatsApp follow-up." },
-];
-
-const plans = [
-  { name: "Starter", price: 499, features: ["1 Facebook Page", "AI posts & scheduling", "Analytics & best-time insights"] },
-  { name: "Pro", price: 999, popular: true, features: ["Everything in Starter", "Ad recommendations & campaigns", "Lead capture & ROI", "Priority AI generation"] },
+  { icon: Sparkles, title: "AI writes your posts", desc: "Captions, hashtags and post ideas in your brand voice — ready in seconds." },
+  { icon: CalendarDays, title: "Auto-schedule & publish", desc: "Plan a month of Facebook posts and let them go out on time, automatically." },
+  { icon: BarChart3, title: "Simple analytics", desc: "Your reach, engagement and best time to post — explained in plain words." },
+  { icon: Megaphone, title: "Know which post to boost", desc: "AI picks your best post to promote. You approve — nothing spends without you." },
+  { icon: Users, title: "Never miss a lead", desc: "Every enquiry in one place, with one-tap WhatsApp follow-up." },
 ];
 
 export default function Landing() {
@@ -53,8 +49,8 @@ export default function Landing() {
         </h1>
         <p className="mx-auto mt-5 max-w-xl text-base text-ink-600 sm:text-lg">
           Generate posts, schedule them, track performance, and let AI recommend which one to
-          promote. Built for coaching centres, gyms, playschools &amp; local businesses — from
-          just ₹499/month.
+          promote. Built for coaching centres, gyms, playschools &amp; local businesses — plans
+          for a single shop, a whole franchise, or a custom mix.
         </p>
         <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Link href="/signup" className="btn-primary w-full px-6 py-3 text-base sm:w-auto">
@@ -123,39 +119,7 @@ export default function Landing() {
       </section>
 
       {/* Pricing */}
-      <section className="mx-auto max-w-4xl px-5 py-12">
-        <h2 className="text-center text-2xl font-bold tracking-tight sm:text-3xl">Simple pricing</h2>
-        <p className="mt-2 text-center text-ink-500">Start free for 14 days. Cancel anytime.</p>
-        <div className="mt-8 grid gap-4 sm:grid-cols-2">
-          {plans.map((p) => (
-            <div
-              key={p.name}
-              className={`card p-6 ${p.popular ? "ring-2 ring-brand-500" : ""}`}
-            >
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold">{p.name}</h3>
-                {p.popular && <span className="chip bg-brand-50 text-brand-700">Most popular</span>}
-              </div>
-              <p className="mt-2 text-3xl font-extrabold">
-                ₹{p.price}<span className="text-sm font-medium text-ink-500">/month</span>
-              </p>
-              <ul className="mt-4 space-y-2 text-sm text-ink-600">
-                {p.features.map((f) => (
-                  <li key={f} className="flex items-center gap-2">
-                    <Check className="h-4 w-4 text-emerald-500" /> {f}
-                  </li>
-                ))}
-              </ul>
-              <Link
-                href="/signup"
-                className={`mt-6 w-full ${p.popular ? "btn-primary" : "btn-ghost"}`}
-              >
-                Start free trial
-              </Link>
-            </div>
-          ))}
-        </div>
-      </section>
+      <Pricing />
 
       <footer className="border-t border-ink-100 py-6 text-center text-sm text-ink-400">
         © {new Date().getFullYear()} SocialPilot AI · Facebook marketing automation for small businesses
