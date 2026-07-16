@@ -42,6 +42,13 @@ function RecommendationCard({ rec }: { rec: AdRecommendation }) {
   const [days, setDays] = useState(rec.days);
   const [dismissed, setDismissed] = useState(false);
   const total = budget * days;
+  // Rough, budget-scaled ESTIMATE (not a real forecast). ~₹25–₹40 per lead and a
+  // ~₹60–₹90 reach-per-rupee proxy for a local boost — so the range at least
+  // responds to the budget/days the user sets, and is labelled as an estimate.
+  const estLeadsLow = Math.max(1, Math.round(total / 40));
+  const estLeadsHigh = Math.max(estLeadsLow, Math.round(total / 25));
+  const estReachLow = Math.round(total * 60).toLocaleString("en-IN");
+  const estReachHigh = Math.round(total * 90).toLocaleString("en-IN");
   const audienceLine = [rec.audience.locations.join(", "), rec.audience.interests.slice(0, 3).join(", ")].filter(Boolean).join(" · ");
 
   if (dismissed) {
@@ -97,7 +104,8 @@ function RecommendationCard({ rec }: { rec: AdRecommendation }) {
 
         <div className="rounded-lg bg-ink-50 p-3 text-xs text-ink-500">
           <div className="flex justify-between"><span>Total spend (on Facebook)</span><b className="text-ink-700">{inr(total)}</b></div>
-          <div className="mt-1 flex justify-between"><span>Expected outcome</span><span>{rec.expected.results} · {rec.expected.reach} reach</span></div>
+          <div className="mt-1 flex justify-between"><span>Estimated outcome</span><span>~{estLeadsLow}–{estLeadsHigh} leads · {estReachLow}–{estReachHigh} reach</span></div>
+          <p className="mt-1 text-[10px] text-ink-400">Rough estimate — actual Facebook ad results vary.</p>
         </div>
 
         <div className="flex gap-2 pt-1">
