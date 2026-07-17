@@ -93,6 +93,7 @@ model PaymentRequest {
   cycle             String       @default("monthly")
   status            String       @default("pending") // pending | activated | rejected
   upiRef            String? // txn/reference id the payer enters
+  screenshot        String? // optional payment screenshot (data URL) for verification
   requestedByUserId String?
   createdAt         DateTime     @default(now())
   decidedAt         DateTime?

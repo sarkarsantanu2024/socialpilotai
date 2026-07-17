@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { getCurrentUser, isSuperadmin } from "@/lib/access";
 import { getCurrentTenant } from "@/lib/currentTenant";
 import { orgBilling, listAllPending } from "@/lib/billing";
-import { PLANS, upiUri, payee } from "@/lib/plans";
+import { PLANS, upiUri, payee, qrImage } from "@/lib/plans";
 import { BillingClient } from "./BillingClient";
 
 export default async function BillingPage() {
@@ -17,11 +17,15 @@ export default async function BillingPage() {
   const billing = orgId ? await orgBilling(orgId) : null;
   const pendingAll = admin ? await listAllPending(user) : [];
 
-  // Pre-generate a UPI QR (data URL) per plan.
+  // Payee's own branded QR (PAYEE_QR_IMAGE) wins; otherwise pre-generate a UPI QR
+  // (data URL) per plan with the amount pre-filled.
   const p = payee();
+  const staticQr = qrImage();
   const qr: Record<string, string> = {};
-  for (const plan of PLANS) {
-    qr[plan.id] = await QRCode.toDataURL(upiUri(plan.price, `SocialPilot ${plan.name}`), { margin: 1, width: 220 });
+  if (!staticQr) {
+    for (const plan of PLANS) {
+      qr[plan.id] = await QRCode.toDataURL(upiUri(plan.price, `SocialPilot ${plan.name}`), { margin: 1, width: 220 });
+    }
   }
 
   return (
@@ -34,6 +38,7 @@ export default async function BillingPage() {
       <BillingClient
         plans={PLANS}
         qr={qr}
+        qrImage={staticQr}
         upi={p}
         billing={billing}
         isSuperadmin={admin}
