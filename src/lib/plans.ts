@@ -19,7 +19,12 @@ export type Feature =
   | "priority_ai"; // priority AI generation
 
 const SINGLE_FEATURES: Feature[] = ["ai_image", "ads", "priority_ai"];
-const HO_FEATURES: Feature[] = [...SINGLE_FEATURES, "multi_center", "autopost", "team"];
+const HO_FEATURES: Feature[] = [
+  ...SINGLE_FEATURES,
+  "multi_center",
+  "autopost",
+  "team",
+];
 
 export const PLAN_FEATURES: Record<PlanId, Feature[]> = {
   trial: [], // generous free — see note above
@@ -53,7 +58,10 @@ export function planId(plan: string | null | undefined): PlanId {
 }
 
 /** Is this plan entitled to a feature? The single source of truth for gating. */
-export function can(plan: string | null | undefined, feature: Feature): boolean {
+export function can(
+  plan: string | null | undefined,
+  feature: Feature,
+): boolean {
   return PLAN_FEATURES[planId(plan)].includes(feature);
 }
 
@@ -114,6 +122,16 @@ export function payee() {
     upi: process.env.PAYEE_UPI_ID || "your-upi-id@bank",
     name: process.env.PAYEE_NAME || "SocialPilot AI",
   };
+}
+
+/**
+ * Optional static payee QR image (a public path like "/payment-qr.jpg", or a URL).
+ * When set, Billing shows THIS branded QR instead of a generated UPI QR. Note a
+ * static QR carries the VPA but NOT the amount, so the UI tells the payer what to
+ * enter. Unset → fall back to a generated QR with the amount pre-filled.
+ */
+export function qrImage(): string | null {
+  return process.env.PAYEE_QR_IMAGE || null;
 }
 
 /** UPI deep-link that any UPI app / QR scanner understands. */

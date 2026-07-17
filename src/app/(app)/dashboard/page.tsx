@@ -8,6 +8,9 @@ import { TrendChart } from "@/components/charts/TrendChart";
 import { BarMini } from "@/components/charts/BarMini";
 import { getClientData } from "@/lib/clientData";
 import { getCurrentTenant } from "@/lib/currentTenant";
+import { getCurrentUser } from "@/lib/access";
+import { getRollup } from "@/lib/rollup";
+import { HoDashboard } from "./HoDashboard";
 import { generateReport } from "@/lib/ai";
 import { compact, fmtDate } from "@/lib/utils";
 import { weeklyTrend, bestTimes as calcBestTimes, growthPct } from "@/lib/insights";
@@ -24,6 +27,15 @@ function EmptyChart({ text }: { text: string }) {
 }
 
 export default async function Dashboard() {
+  // Head-office mode (owner with no single center selected): show real org-wide
+  // totals rolled up across every center instead of an empty center dashboard.
+  const activeTenant = await getCurrentTenant();
+  if (!activeTenant) {
+    const user = await getCurrentUser();
+    const rollup = user ? await getRollup(user) : null;
+    if (rollup) return <HoDashboard rollup={rollup} />;
+  }
+
   const { posts, analytics, leads, live, page } = await getClientData();
   const totalReach = analytics.reduce((s, a) => s + a.reach, 0);
   const avgEng =
@@ -40,8 +52,7 @@ export default async function Dashboard() {
   const nextFestival = upcomingFestivals(new Date(), 45, 1)[0] ?? null;
 
   // Nudge new users into the (already-built) 3-step setup wizard until they finish it.
-  const tenant = await getCurrentTenant();
-  const needsSetup = tenant ? !tenant.onboarded : false;
+  const needsSetup = activeTenant ? !activeTenant.onboarded : false;
 
   const topAnalytics = [...analytics].sort((a, b) => b.engagementRate - a.engagementRate)[0];
   const topPost = posts.find((p) => p.id === topAnalytics?.postId) ?? posts[0];

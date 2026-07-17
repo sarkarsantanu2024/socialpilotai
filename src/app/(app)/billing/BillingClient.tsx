@@ -1,39 +1,50 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Copy, ShieldCheck, Clock, X } from "lucide-react";
+import { Check, Copy, ShieldCheck, Clock, X, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { planId, getPlan, type PlanId } from "@/lib/plans";
 
 type Plan = { id: PlanId; name: string; price: number; features: string[] };
 type Billing = { plan: string; planStatus: string; planRenewsAt: string | null; pending: { id: string; plan: string; amount: number; createdAt: string } | null } | null;
-type Pending = { id: string; plan: string; amount: number; upiRef: string | null; orgName: string; createdAt: string };
+type Pending = { id: string; plan: string; amount: number; upiRef: string | null; screenshot: string | null; orgName: string; createdAt: string };
 
 export function BillingClient({
-  plans, qr, upi, billing, isSuperadmin, pendingAll,
+  plans, qr, qrImage, upi, billing, isSuperadmin, pendingAll,
 }: {
-  plans: Plan[]; qr: Record<string, string>; upi: { upi: string; name: string };
+  plans: Plan[]; qr: Record<string, string>; qrImage?: string | null; upi: { upi: string; name: string };
   billing: Billing; isSuperadmin: boolean; pendingAll: Pending[];
 }) {
   const router = useRouter();
   const [pay, setPay] = useState<Plan | null>(null);
   const [ref, setRef] = useState("");
+  const [shot, setShot] = useState<string | null>(null); // payment screenshot (data URL)
+  const shotRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const current = billing?.plan ?? "trial";
   const currentId = planId(current); // normalise legacy starter/pro
   const currentName = currentId === "trial" ? "Trial" : getPlan(currentId)?.name ?? current;
 
+  function onPickShot(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !file.type.startsWith("image/")) return;
+    const reader = new FileReader();
+    reader.onload = () => setShot(reader.result as string);
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
+
   async function submitPayment() {
     if (!pay) return;
     setBusy(true);
     const r = await fetch("/api/billing/request", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ plan: pay.id, upiRef: ref }),
+      body: JSON.stringify({ plan: pay.id, upiRef: ref, screenshot: shot }),
     });
     setBusy(false);
-    if (r.ok) { setPay(null); setRef(""); router.refresh(); }
+    if (r.ok) { setPay(null); setRef(""); setShot(null); router.refresh(); }
   }
 
   async function decide(id: string, action: "activate" | "reject") {
@@ -65,9 +76,15 @@ export function BillingClient({
             {pendingAll.length === 0 && <p className="py-6 text-center text-sm text-ink-400">No pending payments.</p>}
             {pendingAll.map((p) => (
               <div key={p.id} className="flex items-center gap-3 py-3">
+                {p.screenshot && (
+                  <a href={p.screenshot} target="_blank" rel="noreferrer" className="shrink-0" title="Open payment screenshot">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={p.screenshot} alt="Payment screenshot" className="h-12 w-12 rounded border border-ink-100 object-cover transition hover:opacity-80" />
+                  </a>
+                )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{p.orgName}</p>
-                  <p className="text-xs text-ink-400 capitalize">{p.plan} · ₹{p.amount}{p.upiRef ? ` · ref ${p.upiRef}` : ""} · {new Date(p.createdAt).toLocaleDateString()}</p>
+                  <p className="text-xs text-ink-400 capitalize">{p.plan} · ₹{p.amount}{p.upiRef ? ` · ref ${p.upiRef}` : ""} · {new Date(p.createdAt).toLocaleDateString()}{p.screenshot ? " · 📎 screenshot" : ""}</p>
                 </div>
                 <button onClick={() => decide(p.id, "activate")} className="btn-primary text-xs"><Check className="h-3.5 w-3.5" /> Activate</button>
                 <button onClick={() => decide(p.id, "reject")} className="btn-ghost text-xs text-rose-600 hover:bg-rose-50"><X className="h-3.5 w-3.5" /></button>
@@ -113,8 +130,14 @@ export function BillingClient({
             </div>
             <div className="mt-4 grid place-items-center">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={qr[pay.id]} alt="UPI QR" className="h-52 w-52 rounded-xl border border-ink-100" />
+              <img src={qrImage || qr[pay.id]} alt="UPI QR" className="h-52 w-52 rounded-xl border border-ink-100 object-contain" />
               <p className="mt-2 text-xs text-ink-500">Scan with any UPI app (GPay, PhonePe, Paytm…)</p>
+              {/* A static/branded QR carries the UPI id but NOT the amount — say so. */}
+              {qrImage && (
+                <p className="mt-1 text-center text-xs font-medium text-amber-700">
+                  Enter the amount manually: ₹{pay.price}
+                </p>
+              )}
             </div>
             <div className="mt-3 flex items-center gap-2 rounded-lg border border-ink-100 bg-ink-50 p-2.5">
               <span className="min-w-0 flex-1 truncate text-sm font-medium">{upi.upi}</span>
@@ -125,6 +148,27 @@ export function BillingClient({
             <label className="mt-3 block text-xs font-medium text-ink-600">UPI reference / transaction ID (optional)
               <input value={ref} onChange={(e) => setRef(e.target.value)} placeholder="e.g. 4291xxxxxx" className="input mt-1 text-sm" />
             </label>
+
+            {/* Optional payment screenshot — speeds up manual verification */}
+            <input ref={shotRef} type="file" accept="image/*" onChange={onPickShot} className="hidden" />
+            <div className="mt-3">
+              <p className="text-xs font-medium text-ink-600">Payment screenshot (optional)</p>
+              {shot ? (
+                <div className="mt-1 flex items-center gap-2 rounded-lg border border-ink-100 p-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={shot} alt="Payment screenshot" className="h-14 w-14 rounded object-cover" />
+                  <span className="flex-1 text-xs text-ink-500">Screenshot attached</span>
+                  <button onClick={() => setShot(null)} className="rounded p-1 text-ink-400 hover:bg-ink-100 hover:text-ink-700" aria-label="Remove screenshot">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <button onClick={() => shotRef.current?.click()} className="btn-ghost mt-1 w-full text-xs">
+                  <Upload className="h-3.5 w-3.5" /> Attach screenshot
+                </button>
+              )}
+            </div>
+
             <button disabled={busy} onClick={submitPayment} className="btn-primary mt-4 w-full disabled:opacity-60">
               {busy ? "Submitting…" : "I've paid — request activation"}
             </button>

@@ -20,17 +20,24 @@ export async function orgBilling(orgId: string) {
   };
 }
 
-export async function createPaymentRequest(user: MinUser, input: { plan: string; upiRef?: string; orgId?: string }) {
+export async function createPaymentRequest(user: MinUser, input: { plan: string; upiRef?: string; screenshot?: string; orgId?: string }) {
   const plan = getPlan(input.plan);
   if (!plan) throw new Error("Unknown plan.");
   const orgId = input.orgId ?? primaryOrgId(user);
   if (!orgId) throw new Error("No organization to bill.");
   if (!(await canAdminOrg(user, orgId))) throw new Error("Only an owner/HO can manage billing.");
 
+  // Optional payment screenshot (data URL). Guard the size so a huge upload can't
+  // bloat the row — upgrades are rare, so a reasonable cap is plenty.
+  const shot = input.screenshot?.startsWith("data:image/") && input.screenshot.length < 3_000_000
+    ? input.screenshot
+    : null;
+
   const req = await prisma.paymentRequest.create({
     data: {
       organizationId: orgId, plan: plan.id, amount: plan.price,
-      upiRef: input.upiRef?.trim() || null, requestedByUserId: user.id, status: "pending",
+      upiRef: input.upiRef?.trim() || null, screenshot: shot,
+      requestedByUserId: user.id, status: "pending",
     },
   });
   await audit({ organizationId: orgId, actorUserId: user.id, actorName: user.name ?? user.username, action: "plan.request", detail: `Requested ${plan.name} (₹${plan.price}) via UPI` });
@@ -46,7 +53,7 @@ export async function listAllPending(user: MinUser) {
     orderBy: { createdAt: "asc" },
   });
   return reqs.map((r) => ({
-    id: r.id, plan: r.plan, amount: r.amount, upiRef: r.upiRef,
+    id: r.id, plan: r.plan, amount: r.amount, upiRef: r.upiRef, screenshot: r.screenshot,
     orgName: r.organization.name, createdAt: r.createdAt.toISOString(),
   }));
 }
