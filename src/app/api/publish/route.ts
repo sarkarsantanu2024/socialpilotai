@@ -3,6 +3,7 @@ import { publishPost, publishInstagram, GRAPH_VERSION } from "@/lib/meta";
 import { getActivePage } from "@/lib/fb/connection";
 import { getCurrentTenant } from "@/lib/currentTenant";
 import { notify } from "@/lib/notify";
+import { trialExpiredForCenter } from "@/lib/billing";
 import { prisma } from "@/lib/db";
 
 export async function POST(req: Request) {
@@ -22,6 +23,14 @@ export async function POST(req: Request) {
         error: "Connect your Facebook Page first (Settings → Connect Facebook Page) to publish.",
       },
       { status: 400 }
+    );
+  }
+
+  // Free trial ended → must upgrade to keep publishing (viewing stays open).
+  if (tenant && (await trialExpiredForCenter(tenant.id))) {
+    return NextResponse.json(
+      { ok: false, upgrade: true, error: "Your free trial has ended. Upgrade to keep publishing." },
+      { status: 403 }
     );
   }
 

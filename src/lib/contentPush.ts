@@ -4,6 +4,7 @@
 import "server-only";
 import { prisma } from "@/lib/db";
 import { canAdminOrg, primaryOrgId } from "@/lib/org";
+import { trialExpiredForOrg } from "@/lib/billing";
 import { getActivePage } from "@/lib/fb/connection";
 import { publishPost, publishInstagram } from "@/lib/meta";
 import type { PostType } from "@/lib/types";
@@ -56,6 +57,7 @@ export async function publishToCenters(
   if (!orgId) throw new Error("No organization to publish to.");
   if (!(await canAdminOrg(user, orgId))) throw new Error("Only an owner/HO or platform admin can publish to centers.");
   if (!input.caption.trim()) throw new Error("Write some content first.");
+  if (await trialExpiredForOrg(orgId)) throw new Error("Your free trial has ended. Upgrade to keep publishing.");
 
   const where = input.centerIds?.length
     ? { organizationId: orgId, id: { in: input.centerIds } }
