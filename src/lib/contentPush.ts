@@ -23,9 +23,14 @@ export interface PublishToCentersInput {
   hashtags?: string[];
   type?: PostType;
   assetUrl?: string;
+  assetUrls?: string[]; // multiple images → a real multi-photo (carousel) post per branch
   scheduledAt?: string; // ISO — when set, schedule instead of publish now
   centerIds?: string[]; // omitted / empty = all centers in the org
   instagram?: boolean; // best-effort IG cross-post (immediate only)
+  // Optional per-center overrides (keyed by center/tenant id). A center listed
+  // here uses its own caption/hashtags instead of the shared broadcast default;
+  // {center}/{city} tokens are still localized. Centers absent = shared default.
+  overrides?: Record<string, { caption?: string; hashtags?: string[] }>;
 }
 
 export type CenterPublishResult = {
@@ -60,14 +65,23 @@ export async function publishToCenters(
 
   const isScheduled = !!input.scheduledAt;
   const hashtags = input.hashtags ?? [];
-  const httpAsset = input.assetUrl && /^https?:\/\//.test(input.assetUrl) ? input.assetUrl : null;
+  // Images to publish: the explicit list (carousel) or the single assetUrl.
+  const media = (input.assetUrls?.length ? input.assetUrls : input.assetUrl ? [input.assetUrl] : []).filter(Boolean);
+  // For the DB row keep only a public http(s) image. Uploaded/AI data-URLs aren't
+  // stored — the image is on Facebook after publishing, and clientData overlays the
+  // real FB image back onto the post once the Page API indexes it.
+  const httpAsset = media.find((u) => /^https?:\/\//.test(u)) ?? null;
   const results: CenterPublishResult[] = [];
 
   for (const c of centers) {
     const name = c.businessProfile?.name ?? c.name ?? "Untitled center";
     const ctx = { name, city: c.businessProfile?.city ?? "" };
-    const caption = localize(input.caption, ctx);
-    const fbCaption = hashtags.length ? `${caption}\n\n${hashtags.join(" ")}` : caption;
+    // Per-center override wins over the shared broadcast default (tokens still localized).
+    const ov = input.overrides?.[c.id];
+    const baseCaption = ov?.caption?.trim() ? ov.caption : input.caption;
+    const centerHashtags = ov?.hashtags?.length ? ov.hashtags : hashtags;
+    const caption = localize(baseCaption, ctx);
+    const fbCaption = centerHashtags.length ? `${caption}\n\n${centerHashtags.join(" ")}` : caption;
 
     const page = await getActivePage(c.id);
     if (!page) {
@@ -80,7 +94,8 @@ export async function publishToCenters(
         pageId: page.id,
         pageToken: page.token,
         caption: fbCaption,
-        assetUrl: input.assetUrl,
+        assetUrl: media[0],
+        assetUrls: media.length > 1 ? media : undefined,
         scheduledAt: input.scheduledAt,
       });
 
@@ -93,7 +108,7 @@ export async function publishToCenters(
           source: "ho-publish",
           title: localize(input.title || caption.split("\n")[0] || "Post", ctx).slice(0, 80) || "Post",
           caption,
-          hashtags,
+          hashtags: centerHashtags,
           assetUrl: httpAsset,
           scheduledAt: isScheduled ? new Date(input.scheduledAt as string) : null,
           publishedAt: isScheduled ? null : new Date(),
