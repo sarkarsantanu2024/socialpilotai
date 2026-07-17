@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/access";
-import { createInvite } from "@/lib/org";
+import { createInvite, primaryOrgId } from "@/lib/org";
+import { prisma } from "@/lib/db";
+import { can } from "@/lib/plans";
 import { audit } from "@/lib/audit";
 
 // Create an invite link. Body: { role, centerId?, email?, orgId? }.
@@ -11,6 +13,19 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
 
   const body = await req.json().catch(() => ({}));
+
+  // Team roles (managers & staff) are a Head Office feature.
+  const orgId = body.orgId ?? primaryOrgId(user);
+  if (orgId) {
+    const org = await prisma.organization.findUnique({ where: { id: orgId }, select: { plan: true } });
+    if (!can(org?.plan, "team")) {
+      return NextResponse.json(
+        { error: "Inviting managers & staff is a Head Office feature. Upgrade to build your team.", upgrade: true },
+        { status: 403 }
+      );
+    }
+  }
+
   try {
     const invite = await createInvite(user, {
       orgId: body.orgId,

@@ -2,7 +2,7 @@
 // a super-admin activates the plan. Server-only.
 import "server-only";
 import { prisma } from "@/lib/db";
-import { getPlan } from "@/lib/plans";
+import { getPlan, planId } from "@/lib/plans";
 import { canAdminOrg, primaryOrgId } from "@/lib/org";
 import { isSuperadmin } from "@/lib/access";
 import { audit } from "@/lib/audit";
@@ -74,4 +74,30 @@ export async function decideRequest(user: MinUser, input: { id: string; action: 
 export async function planForCenter(centerId: string): Promise<string> {
   const c = await prisma.tenant.findUnique({ where: { id: centerId }, select: { organization: { select: { plan: true } } } });
   return c?.organization?.plan ?? "trial";
+}
+
+// ── Trial expiry ───────────────────────────────────────────────────────────
+// A center on the free trial (plan resolves to "trial") whose 14-day window has
+// passed must upgrade to keep publishing. PAID plans (single/ho/custom, and
+// legacy starter/pro) never "expire". Missing trialEndsAt → treated as active.
+
+/** True when the center's org is on the trial plan AND the trial has ended. */
+export async function trialExpiredForCenter(centerId: string): Promise<boolean> {
+  const c = await prisma.tenant.findUnique({
+    where: { id: centerId },
+    select: { trialEndsAt: true, organization: { select: { plan: true } } },
+  });
+  if (planId(c?.organization?.plan) !== "trial") return false;
+  return !!c?.trialEndsAt && c.trialEndsAt.getTime() < Date.now();
+}
+
+/** True when the org is on the trial plan AND its (oldest center's) trial has ended. */
+export async function trialExpiredForOrg(orgId: string): Promise<boolean> {
+  const org = await prisma.organization.findUnique({
+    where: { id: orgId },
+    select: { plan: true, centers: { select: { trialEndsAt: true }, orderBy: { createdAt: "asc" }, take: 1 } },
+  });
+  if (planId(org?.plan) !== "trial") return false;
+  const t = org?.centers[0]?.trialEndsAt;
+  return !!t && t.getTime() < Date.now();
 }
