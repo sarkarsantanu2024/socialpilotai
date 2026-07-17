@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Sparkles, Image as ImageIcon, Images, Film, Video, Upload, X, RefreshCw, Wand2, Hash,
-  Send, CalendarClock, Check, AlertTriangle, Building2,
+  Send, CalendarClock, Check, AlertTriangle, Building2, ChevronDown, Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useBrand } from "@/lib/brand/store";
@@ -19,8 +19,8 @@ type CenterResult = { centerId: string; name: string; status: string; reason?: s
 const FORMATS: { key: FormatKey; label: string; icon: typeof ImageIcon; note: string; kind: "image" | "video"; slides: number; postType: PostType }[] = [
   { key: "single", label: "Single Image", icon: ImageIcon, note: "Square feed post", kind: "image", slides: 1, postType: "image" },
   { key: "carousel", label: "Image Slides", icon: Images, note: "Swipeable carousel", kind: "image", slides: 3, postType: "image" },
-  { key: "reel", label: "Reel", icon: Film, note: "Caption only (add clip per branch)", kind: "video", slides: 0, postType: "reel" },
-  { key: "video", label: "Video", icon: Video, note: "Caption only (add clip per branch)", kind: "video", slides: 0, postType: "video" },
+  { key: "reel", label: "Reel", icon: Film, note: "Vertical video clip", kind: "video", slides: 0, postType: "reel" },
+  { key: "video", label: "Video", icon: Video, note: "Landscape video clip", kind: "video", slides: 0, postType: "video" },
 ];
 
 const STOCK_KEYWORDS: Record<BusinessType, string> = {
@@ -42,8 +42,12 @@ export function OrgComposer({ centers, setMsg }: { centers: Center[]; setMsg: (m
   const [result, setResult] = useState<PostVariation | null>(null);
   const [caption, setCaption] = useState("");
   const [hashtags, setHashtags] = useState("");
-  const [images, setImages] = useState<string[]>([]);
-  const [upload, setUpload] = useState<{ name: string; preview: string | null } | null>(null);
+  const [images, setImages] = useState<string[]>([]); // AI / stock generated
+  // Own creative the HO uploads, broadcast to every branch. Images: one or more
+  // data-URLs (a carousel takes one per slide). Video/reel: a single clip.
+  const [imgs, setImgs] = useState<string[]>([]);
+  const [clip, setClip] = useState<{ name: string } | null>(null);
+  const [dragOver, setDragOver] = useState(false);
   const [aiImg, setAiImg] = useState<{ busy: boolean; msg: string | null; upgrade: boolean }>({ busy: false, msg: null, upgrade: false });
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -54,9 +58,42 @@ export function OrgComposer({ centers, setMsg }: { centers: Center[]; setMsg: (m
   const [when, setWhen] = useState("");
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState<CenterResult[] | null>(null);
+  // Guard against accidental duplicate broadcasts: once a post is sent, the button
+  // stays disabled until the content or targeting changes (see the reset effect).
+  const [sent, setSent] = useState(false);
+
+  // Per-center overrides — a center listed here publishes its own caption/hashtags
+  // instead of the shared broadcast default. Absent centers use the default.
+  const [customize, setCustomize] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [overrides, setOverrides] = useState<Record<string, { caption: string; hashtags: string }>>({});
+
+  function startOverride(id: string) {
+    setOverrides((o) => (o[id] ? o : { ...o, [id]: { caption, hashtags } }));
+    setExpanded((e) => (e === id ? null : id));
+  }
+  function patchOverride(id: string, patch: Partial<{ caption: string; hashtags: string }>) {
+    setOverrides((o) => ({ ...o, [id]: { ...o[id], ...patch } }));
+  }
+  function clearOverride(id: string) {
+    setOverrides((o) => {
+      const next = { ...o };
+      delete next[id];
+      return next;
+    });
+    setExpanded((e) => (e === id ? null : e));
+  }
+
+  // Re-arm the Publish button whenever the content or targeting changes, so an
+  // edited post can go out again but the exact same one can't be sent twice.
+  useEffect(() => {
+    setSent(false);
+  }, [caption, hashtags, imgs, images, clip, format, target, picked, overrides, mode, when]);
 
   const fmt = FORMATS.find((f) => f.key === format)!;
   const isVideo = fmt.kind === "video";
+  const accept = isVideo ? "video/*" : "image/*";
+  const maxImgs = fmt.slides; // 1 for single, N for a carousel
 
   const targetCenters = useMemo(
     () => (target === "all" ? centers : centers.filter((c) => picked.includes(c.id))),
@@ -69,17 +106,48 @@ export function OrgComposer({ centers, setMsg }: { centers: Center[]; setMsg: (m
     setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
   }
 
-  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.type.startsWith("image/")) {
-      const reader = new FileReader();
-      reader.onload = () => setUpload({ name: file.name, preview: reader.result as string });
-      reader.readAsDataURL(file);
-    } else {
-      setUpload({ name: file.name, preview: null });
+  // Add dropped/picked files. Video: take one clip. Images: read as data-URLs and
+  // append up to the format's slide count (so a carousel gets one image per slide).
+  function addFiles(files: FileList | File[] | null) {
+    const list = files ? Array.from(files) : [];
+    if (!list.length) return;
+    if (isVideo) {
+      const f = list.find((x) => x.type.startsWith("video/")) ?? list[0];
+      setClip({ name: f.name });
+      return;
     }
-    e.target.value = "";
+    const chosen = list.filter((f) => f.type.startsWith("image/"));
+    if (!chosen.length) return;
+    Promise.all(
+      chosen.map(
+        (f) =>
+          new Promise<string>((resolve) => {
+            const r = new FileReader();
+            r.onload = () => resolve(r.result as string);
+            r.readAsDataURL(f);
+          })
+      )
+    ).then((urls) => setImgs((prev) => [...prev, ...urls].slice(0, maxImgs)));
+  }
+
+  function onFileInput(e: React.ChangeEvent<HTMLInputElement>) {
+    addFiles(e.target.files);
+    e.target.value = ""; // allow re-selecting the same file
+  }
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    addFiles(e.dataTransfer.files);
+  }
+  function onDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    if (!dragOver) setDragOver(true);
+  }
+  function onDragLeave() {
+    setDragOver(false);
+  }
+  function removeImg(i: number) {
+    setImgs((prev) => prev.filter((_, idx) => idx !== i));
   }
 
   async function generate() {
@@ -119,7 +187,7 @@ export function OrgComposer({ centers, setMsg }: { centers: Center[]; setMsg: (m
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.image) {
         setImages((prev) => [data.image, ...prev.filter((u) => u !== data.image)]);
-        setUpload(null);
+        setImgs([]); // AI image wins over any uploaded creative
         setAiImg({ busy: false, msg: "AI image ready", upgrade: false });
       } else {
         setAiImg({ busy: false, msg: data.error ?? "Couldn't generate an AI image.", upgrade: !!data.upgrade });
@@ -129,35 +197,57 @@ export function OrgComposer({ centers, setMsg }: { centers: Center[]; setMsg: (m
     }
   }
 
-  const primaryImage: string | undefined = fmt.kind === "image" ? (upload?.preview ?? images[0]) : undefined;
-  // Send the actual visible image to publish (http stock, or AI/upload data-URL — FB accepts bytes).
-  const assetForSend = fmt.kind === "image" ? (upload?.preview ?? images[0]) : undefined;
+  // Image source for a given slide: the HO's own uploaded image wins, else stock.
+  function slideImage(i: number): string | undefined {
+    return imgs[i] ?? images[i] ?? images[0];
+  }
+  // Every slide's image, in order — what actually gets published to each branch.
+  function slideImages(): string[] {
+    if (fmt.kind !== "image") return [];
+    return Array.from({ length: fmt.slides }, (_, i) => slideImage(i)).filter((u): u is string => !!u);
+  }
 
-  const canSend = caption.trim().length > 0 && targetCenters.length > 0 && !busy;
+  const primaryImage: string | undefined = fmt.kind === "image" ? slideImage(0) : undefined;
+  const canSend = caption.trim().length > 0 && targetCenters.length > 0 && !busy && !sent;
 
   async function submit() {
     if (!caption.trim()) { setMsg("Write or generate some content first."); return; }
     if (!targetCenters.length) { setMsg("Pick at least one center."); return; }
     if (mode === "schedule" && !when) { setMsg("Pick a date & time to schedule."); return; }
 
-    const tagList = hashtags.split(/[\s,]+/).map((t) => t.trim()).filter(Boolean).map((t) => (t.startsWith("#") ? t : `#${t}`));
+    const parseTags = (s: string) =>
+      s.split(/[\s,]+/).map((t) => t.trim()).filter(Boolean).map((t) => (t.startsWith("#") ? t : `#${t}`));
+    const tagList = parseTags(hashtags);
     const centerIds = target === "some" ? picked : undefined;
+    const allImages = slideImages();
+
+    // Build per-center overrides for the branches actually being sent to.
+    const overridesPayload: Record<string, { caption: string; hashtags: string[] }> = {};
+    for (const c of targetCenters) {
+      const ov = overrides[c.id];
+      if (ov) overridesPayload[c.id] = { caption: ov.caption, hashtags: parseTags(ov.hashtags) };
+    }
+    const hasOverrides = Object.keys(overridesPayload).length > 0;
+
     setBusy(true);
     setResults(null);
     try {
-      // Direct publish / schedule to each branch's Page.
+      // Direct publish / schedule to each branch's Page. A carousel sends every
+      // slide image → a real multi-photo post on each branch's Page.
       const res = await fetch("/api/content-push/publish", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: result?.title ?? caption.slice(0, 48),
           caption, hashtags: tagList, type: fmt.postType,
-          assetUrl: assetForSend, centerIds,
+          assetUrl: allImages[0], assetUrls: allImages, centerIds,
+          overrides: hasOverrides ? overridesPayload : undefined,
           scheduledAt: mode === "schedule" && when ? new Date(when).toISOString() : undefined,
         }),
       });
       const d = await res.json().catch(() => ({}));
       if (res.ok) {
         setResults(d.results ?? []);
+        setSent(true); // lock the button until the content/targeting changes
         const verb = mode === "schedule" ? "Scheduled" : "Published";
         setMsg(`${verb} to ${d.published + d.scheduled} center${d.published + d.scheduled === 1 ? "" : "s"}${d.skipped ? ` · ${d.skipped} skipped (no Page)` : ""}${d.failed ? ` · ${d.failed} failed` : ""}.`);
       } else {
@@ -189,7 +279,7 @@ export function OrgComposer({ centers, setMsg }: { centers: Center[]; setMsg: (m
               const active = format === f.key;
               const Icon = f.icon;
               return (
-                <button key={f.key} onClick={() => { setFormat(f.key); setUpload(null); }}
+                <button key={f.key} onClick={() => { setFormat(f.key); setImgs([]); setClip(null); }}
                   className={cn("rounded-xl border p-3 text-left transition", active ? "border-brand-400 bg-brand-50 ring-2 ring-brand-100" : "border-ink-200 hover:bg-ink-50")}>
                   <Icon className={cn("h-5 w-5", active ? "text-brand-600" : "text-ink-400")} />
                   <p className="mt-1.5 text-sm font-semibold">{f.label}</p>
@@ -199,7 +289,69 @@ export function OrgComposer({ centers, setMsg }: { centers: Center[]; setMsg: (m
             })}
           </div>
 
-          <input ref={fileRef} type="file" accept={isVideo ? "video/*" : "image/*"} onChange={onFile} className="hidden" />
+          {/* One hidden picker, reused for clips and own creatives. Allows
+              selecting several files at once for a multi-slide carousel. */}
+          <input ref={fileRef} type="file" accept={accept} multiple={!isVideo && maxImgs > 1} onChange={onFileInput} className="hidden" />
+
+          {/* Uploaded images (one thumbnail per slide for a carousel) */}
+          {!isVideo && imgs.length > 0 && (
+            <div className="mt-4">
+              <div className="grid grid-cols-3 gap-2">
+                {imgs.map((src, i) => (
+                  <div key={i} className="group relative aspect-square overflow-hidden rounded-lg ring-1 ring-ink-200">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={src} alt="" className="h-full w-full object-cover" />
+                    {maxImgs > 1 && (
+                      <span className="absolute left-1 top-1 rounded bg-black/60 px-1 text-[10px] font-semibold text-white">{i + 1}</span>
+                    )}
+                    <button onClick={() => removeImg(i)} className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded bg-black/60 text-white opacity-0 transition group-hover:opacity-100" aria-label="Remove image">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-1.5 text-[11px] text-ink-400">
+                {maxImgs > 1 ? `${imgs.length}/${maxImgs} images — one per slide, in this order. Sent to every branch.` : "Your image — broadcast to every branch instead of an AI design."}
+              </p>
+            </div>
+          )}
+
+          {/* Uploaded clip (video/reel) */}
+          {isVideo && clip && (
+            <div className="mt-4 flex items-center gap-3 rounded-xl border border-ink-200 bg-white p-2.5">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-ink-100 text-ink-400"><Film className="h-5 w-5" /></span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{clip.name}</p>
+                <p className="text-[11px] text-ink-400">Your clip</p>
+              </div>
+              <button onClick={() => setClip(null)} className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-ink-400 hover:bg-ink-100 hover:text-ink-700" aria-label="Remove clip">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Drag-&-drop upload — clip for video, image(s) for image formats */}
+          {isVideo && !clip && (
+            <div onDrop={onDrop} onDragOver={onDragOver} onDragLeave={onDragLeave}
+              className={cn("mt-4 rounded-xl border-2 border-dashed p-5 text-center transition", dragOver ? "border-brand-400 bg-brand-50" : "border-ink-200 bg-ink-50")}>
+              <Upload className="mx-auto h-6 w-6 text-ink-400" />
+              <p className="mt-2 text-sm font-medium">Drag &amp; drop your {fmt.label.toLowerCase()} clip, or</p>
+              <button onClick={() => fileRef.current?.click()} className="btn-ghost mt-2 text-xs">Choose file</button>
+              <p className="mt-2 text-[11px] leading-tight text-ink-400">The platform doesn&apos;t generate video — you provide the clip, we write the caption &amp; hashtags broadcast to every branch.</p>
+            </div>
+          )}
+
+          {!isVideo && imgs.length < maxImgs && (
+            <div onDrop={onDrop} onDragOver={onDragOver} onDragLeave={onDragLeave}
+              className={cn("mt-4 rounded-xl border-2 border-dashed p-4 text-center transition", dragOver ? "border-brand-400 bg-brand-50" : "border-ink-200 bg-ink-50 hover:border-brand-300 hover:bg-brand-50")}>
+              <Upload className="mx-auto h-6 w-6 text-ink-400" />
+              <p className="mt-2 text-sm font-medium">{maxImgs > 1 ? "Drag & drop your images, or" : "Drag & drop your image, or"}</p>
+              <button onClick={() => fileRef.current?.click()} className="btn-ghost mt-2 text-xs">{imgs.length > 0 ? "Add more" : "Choose file"}</button>
+              <p className="mt-2 text-[11px] leading-tight text-ink-400">
+                {maxImgs > 1 ? `Use your own creatives — up to ${maxImgs}, one per slide. We still write the caption & hashtags.` : "Prefer your own creative? Upload it — we still write the caption & hashtags."}
+              </p>
+            </div>
+          )}
 
           <div className="mt-4">
             <label className="label">What&apos;s this post about?</label>
@@ -227,9 +379,6 @@ export function OrgComposer({ centers, setMsg }: { centers: Center[]; setMsg: (m
                   <button onClick={generateAiImage} disabled={aiImg.busy} className="btn-ghost text-xs disabled:opacity-60">
                     {aiImg.busy ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Creating…</> : <><Sparkles className="h-3.5 w-3.5" /> AI image (Pro)</>}
                   </button>
-                )}
-                {!isVideo && (
-                  <button onClick={() => fileRef.current?.click()} className="btn-ghost text-xs"><Upload className="h-3.5 w-3.5" /> Upload</button>
                 )}
                 <button onClick={generate} className="btn-ghost text-xs"><RefreshCw className="h-3.5 w-3.5" /> Regenerate</button>
               </div>
@@ -279,16 +428,18 @@ export function OrgComposer({ centers, setMsg }: { centers: Center[]; setMsg: (m
                 )}
               </div>
               <div className="relative">
-                {result?.title && <p className="text-lg font-extrabold leading-tight drop-shadow-sm">{result.title}</p>}
-                {result?.cta && <span className="mt-2 inline-block rounded-md px-2.5 py-1 text-xs font-bold text-ink-900" style={{ background: kit.accent }}>{result.cta}</span>}
+                {result?.title && !primaryImage && <p className="text-lg font-extrabold leading-tight drop-shadow-sm">{result.title}</p>}
+                {result?.cta && !primaryImage && <span className="mt-2 inline-block rounded-md px-2.5 py-1 text-xs font-bold text-ink-900" style={{ background: kit.accent }}>{result.cta}</span>}
               </div>
             </div>
           </div>
-          {upload && (
-            <div className="mt-2 flex items-center gap-2 text-[11px] text-ink-500">
-              <span className="truncate">Using your image: {upload.name}</span>
-              <button onClick={() => setUpload(null)} className="text-ink-400 hover:text-ink-700"><X className="h-3.5 w-3.5" /></button>
-            </div>
+          {fmt.kind === "image" && imgs.length > 0 && (
+            <p className="mt-2 text-center text-[11px] text-ink-400">
+              {maxImgs > 1 ? `Using your ${imgs.length} image${imgs.length === 1 ? "" : "s"} · slide 1 shown` : "Using your image"}
+            </p>
+          )}
+          {isVideo && clip && (
+            <p className="mt-2 truncate text-center text-[11px] text-ink-400">🎬 {clip.name}</p>
           )}
         </div>
 
@@ -312,6 +463,58 @@ export function OrgComposer({ centers, setMsg }: { centers: Center[]; setMsg: (m
           )}
         </div>
 
+        {/* Customize per center (optional) */}
+        {targetCenters.length > 0 && (
+          <div className="card p-4">
+            <button onClick={() => setCustomize((v) => !v)} className="flex w-full items-center justify-between text-left">
+              <span>
+                <span className="block text-xs font-semibold text-ink-500">CUSTOMIZE PER CENTER <span className="font-normal text-ink-400">(optional)</span></span>
+                <span className="text-[11px] text-ink-400">
+                  {Object.keys(overrides).length > 0 ? `${Object.keys(overrides).length} branch(es) customized` : "Give a branch its own caption & hashtags"}
+                </span>
+              </span>
+              <ChevronDown className={cn("h-4 w-4 text-ink-400 transition", customize && "rotate-180")} />
+            </button>
+
+            {customize && (
+              <div className="mt-3 space-y-1.5">
+                {targetCenters.map((c) => {
+                  const ov = overrides[c.id];
+                  const open = expanded === c.id;
+                  return (
+                    <div key={c.id} className="rounded-lg border border-ink-100">
+                      <div className="flex items-center gap-2 px-2.5 py-2">
+                        <span className="flex-1 truncate text-sm">{c.name}</span>
+                        {ov && <span className="chip bg-brand-50 text-[10px] text-brand-700">Customized</span>}
+                        <button onClick={() => startOverride(c.id)} className="btn-ghost px-2 py-1 text-[11px]">
+                          <Pencil className="h-3 w-3" /> {ov ? "Edit" : "Customize"}
+                        </button>
+                      </div>
+                      {open && ov && (
+                        <div className="space-y-2 border-t border-ink-100 p-2.5">
+                          <div>
+                            <label className="label text-[11px]">Caption for {c.name} <span className="font-normal text-ink-400">— {"{center}"}/{"{city}"} still work</span></label>
+                            <textarea className="input min-h-[90px] resize-y text-sm" value={ov.caption} onChange={(e) => patchOverride(c.id, { caption: e.target.value })} />
+                          </div>
+                          <div>
+                            <label className="label text-[11px]">Hashtags for {c.name}</label>
+                            <div className="relative">
+                              <Hash className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
+                              <input className="input pl-9 text-sm" value={ov.hashtags} onChange={(e) => patchOverride(c.id, { hashtags: e.target.value })} />
+                            </div>
+                          </div>
+                          <button onClick={() => clearOverride(c.id)} className="text-[11px] font-medium text-rose-600 hover:underline">Reset to shared content</button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                <p className="pt-1 text-[11px] text-ink-400">Branches you don&apos;t customize use the shared caption &amp; hashtags above.</p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Mode + send */}
         <div className="card space-y-3 p-4">
           <p className="text-xs font-semibold text-ink-500">HOW TO SEND</p>
@@ -332,13 +535,18 @@ export function OrgComposer({ centers, setMsg }: { centers: Center[]; setMsg: (m
           )}
 
           <button onClick={submit} disabled={!canSend} className="btn-primary w-full disabled:opacity-60">
-            {busy ? <><RefreshCw className="h-4 w-4 animate-spin" /> Working…</> : (
+            {busy ? <><RefreshCw className="h-4 w-4 animate-spin" /> Working…</> : sent ? (
+              <><Check className="h-4 w-4" /> {mode === "schedule" ? "Scheduled" : "Published"} — edit to send again</>
+            ) : (
               <>
                 {mode === "publish" && <><Send className="h-4 w-4" /> Publish to {targetCenters.length} center{targetCenters.length === 1 ? "" : "s"}</>}
                 {mode === "schedule" && <><CalendarClock className="h-4 w-4" /> Schedule for {targetCenters.length} center{targetCenters.length === 1 ? "" : "s"}</>}
               </>
             )}
           </button>
+          {sent && (
+            <p className="text-center text-[11px] text-ink-400">Already sent. Change the content or centers to publish again.</p>
+          )}
 
           {/* Per-center outcome */}
           {results && (

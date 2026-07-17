@@ -287,7 +287,13 @@ export async function generateReport(summary: {
   engagementRate: number;
   growth: number;
 }): Promise<string> {
-  const fallback = `📈 Great fortnight! Your reach grew **${summary.growth}%** and your best post — "${summary.topPost}" — drove an engagement rate of **${summary.engagementRate}%**, well above your page average. Recommendation: keep posting short study-tip reels twice a week, and consider promoting your top reel for lead generation while interest is high.`;
+  // Reach/impressions need the read_insights permission (not granted) → reach is 0
+  // and growth is meaningless. Only talk about reach when we actually have it, so
+  // the report never claims a fabricated "reach grew 0%".
+  const hasReach = summary.reach > 0;
+  const fallback = hasReach
+    ? `📈 Great fortnight! Your reach grew **${summary.growth}%** and your best post — "${summary.topPost}" — drove an engagement rate of **${summary.engagementRate}%**, well above your page average. Recommendation: keep posting short study-tip reels twice a week, and consider promoting your top reel for lead generation while interest is high.`
+    : `📈 Nice work! Your best post — "${summary.topPost}" — drove an engagement rate of **${summary.engagementRate}%** from real reactions, comments and shares. Recommendation: keep posting short study-tip reels twice a week, and consider promoting your top reel for lead generation while interest is high.`;
   if (!hasGemini()) {
     await delay(600);
     return fallback;
@@ -296,9 +302,10 @@ export async function generateReport(summary: {
     const prompt = `You are a friendly marketing analyst writing for a non-technical small business owner.
 Write a SHORT (2-3 sentence) plain-language performance summary from these numbers:
 - Best post: "${summary.topPost}"
-- Reach: ${summary.reach}
 - Engagement rate: ${summary.engagementRate}%
-- Reach growth vs last period: ${summary.growth}%
+${hasReach
+  ? `- Reach: ${summary.reach}\n- Reach growth vs last period: ${summary.growth}%`
+  : `- Reach/impressions data is NOT available yet (Facebook insights permission is pending). Do NOT mention reach, impressions, or reach growth at all — write only about engagement (reactions, comments, shares).`}
 
 Be encouraging, use 1 emoji, use **bold** for the key numbers, and END with one concrete recommendation. No headings, no bullet list — just the paragraph.`;
     return await geminiText(prompt);

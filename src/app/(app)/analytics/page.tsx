@@ -21,7 +21,6 @@ export default async function AnalyticsPage() {
   const { posts, analytics, live } = await getClientData();
   const trend = weeklyTrend(posts, analytics);
   const { data: bestDays, highlight: bestDayIdx } = calcBestDays(posts, analytics);
-  const hasData = analytics.length > 0;
   const totals = analytics.reduce(
     (acc, a) => ({
       reach: acc.reach + a.reach,
@@ -36,15 +35,20 @@ export default async function AnalyticsPage() {
   );
   const totalEngagements = totals.reactions + totals.comments + totals.shares;
 
-  const ranked = [...analytics].sort((a, b) => b.engagementRate - a.engagementRate);
-  const top = ranked[0];
-  const topPost = top ? posts.find((p) => p.id === top.postId) : posts[0];
+  // Only surface posts that actually earned engagement — hide all-zero rows so the
+  // table never shows a wall of 0 / 0 / 0 / 0% (genuine data only, no empty noise).
+  const engaged = [...analytics]
+    .filter((a) => a.reactions + a.comments + a.shares > 0)
+    .sort((a, b) => b.engagementRate - a.engagementRate);
+  const top = engaged[0];
+  const topPost = top ? posts.find((p) => p.id === top.postId) : undefined;
 
-  const report = hasData
+  // No report unless there's real engagement to talk about.
+  const report = top
     ? await generateReport({
         topPost: topPost?.title ?? "your recent posts",
         reach: totals.reach,
-        engagementRate: top?.engagementRate ?? 0,
+        engagementRate: top.engagementRate,
         growth: growthPct(trend),
       })
     : null;
@@ -134,25 +138,33 @@ export default async function AnalyticsPage() {
               </tr>
             </thead>
             <tbody>
-              {ranked.map((a) => {
-                const p = posts.find((x) => x.id === a.postId)!;
-                return (
-                  <tr key={a.postId} className="border-t border-ink-100">
-                    <td className="p-3">
-                      <div className="flex items-center gap-2">
-                        <Badge tone="blue">{p.type}</Badge>
-                        <span className="line-clamp-1 max-w-[220px] font-medium">{p.title}</span>
-                      </div>
-                    </td>
-                    <td className="p-3 text-ink-600">{compact(live ? a.reactions : a.reach)}</td>
-                    <td className="p-3 text-ink-600">{a.comments}</td>
-                    <td className="p-3 text-ink-600">{a.shares}</td>
-                    <td className="p-3">
-                      <span className="font-semibold text-emerald-600">{a.engagementRate}%</span>
-                    </td>
-                  </tr>
-                );
-              })}
+              {engaged.length ? (
+                engaged.map((a) => {
+                  const p = posts.find((x) => x.id === a.postId)!;
+                  return (
+                    <tr key={a.postId} className="border-t border-ink-100">
+                      <td className="p-3">
+                        <div className="flex items-center gap-2">
+                          <Badge tone="blue">{p.type}</Badge>
+                          <span className="line-clamp-1 max-w-[220px] font-medium">{p.title}</span>
+                        </div>
+                      </td>
+                      <td className="p-3 text-ink-600">{compact(live ? a.reactions : a.reach)}</td>
+                      <td className="p-3 text-ink-600">{a.comments}</td>
+                      <td className="p-3 text-ink-600">{a.shares}</td>
+                      <td className="p-3">
+                        <span className="font-semibold text-emerald-600">{a.engagementRate}%</span>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={5} className="p-6 text-center text-sm text-ink-400">
+                    No posts with engagement yet — reactions, comments and shares will appear here as they come in.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

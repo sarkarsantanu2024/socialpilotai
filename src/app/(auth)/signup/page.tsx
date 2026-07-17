@@ -1,15 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Loader2, Crown } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Eye, EyeOff, Loader2, Crown, BadgeCheck } from "lucide-react";
 import type { BusinessType } from "@/lib/types";
+import { planLabel } from "@/lib/pricing";
 
 const BUSINESS_TYPES: BusinessType[] = ["coaching", "gym", "playschool", "abacus", "salon", "restaurant"];
 
-export default function SignupPage() {
+function SignupForm() {
   const router = useRouter();
+  const params = useSearchParams();
+  const chosenPlan = planLabel(params.get("plan"));
   const [name, setName] = useState("");
   const [business, setBusiness] = useState("");
   const [type, setType] = useState<BusinessType>("coaching");
@@ -53,6 +56,12 @@ export default function SignupPage() {
       <p className="mt-1 text-sm text-ink-500">
         Start running your page on autopilot in minutes.
       </p>
+
+      {chosenPlan && (
+        <p className="mt-4 flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
+          <BadgeCheck className="h-4 w-4 shrink-0" /> Selected plan: {chosenPlan} · 14-day free trial first, no card required
+        </p>
+      )}
 
       <div className="mt-4 flex items-start gap-2 rounded-xl border border-brand-100 bg-brand-50/60 p-3 text-xs text-ink-600">
         <Crown className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
@@ -136,5 +145,13 @@ export default function SignupPage() {
         </Link>
       </p>
     </>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignupForm />
+    </Suspense>
   );
 }

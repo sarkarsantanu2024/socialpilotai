@@ -111,6 +111,9 @@ export function StudioClient() {
   const [published, setPublished] = useState<{ live: boolean; permalink: string; pageName: string | null; scheduled: boolean; error?: string; instagram?: { ok: boolean; permalink?: string; error?: string } } | null>(null);
   const [scheduleAt, setScheduleAt] = useState("");
   const [showSchedule, setShowSchedule] = useState(false);
+  // Duplicate-publish guard: once sent, the publish button locks until the
+  // content or schedule changes (see the reset effect below).
+  const [sent, setSent] = useState(false);
   // Bumped each generate so swiped slides remount with fresh image load state.
   const [genKey, setGenKey] = useState(0);
   // Own creative the user uploads. Images: one or more data-URLs (a carousel can
@@ -131,6 +134,12 @@ export function StudioClient() {
       .then((s) => setIg({ connected: !!s?.instagram?.connected, username: s?.instagram?.username ?? null }))
       .catch(() => {});
   }, []);
+
+  // Re-arm the publish button whenever the content or schedule changes, so an
+  // edited post can go out again but the exact same one can't be published twice.
+  useEffect(() => {
+    setSent(false);
+  }, [result, images, imgs, clip, format, scheduleAt, crossIg]);
 
   async function generateAiImage() {
     setAiImg({ busy: true, msg: null, upgrade: false });
@@ -315,6 +324,7 @@ export function StudioClient() {
         instagram: data.instagram,
       });
       setShowSchedule(false);
+      if (data.ok !== false) setSent(true); // lock until content/schedule changes
     } catch {
       setPublished({ live: false, permalink: "", pageName: null, scheduled: false, error: "Network error" });
     }
@@ -607,8 +617,8 @@ export function StudioClient() {
                   <button onClick={() => setShowSchedule((s) => !s)} className="btn-ghost flex-1 sm:flex-none">
                     <CalendarClock className="h-4 w-4" /> Schedule
                   </button>
-                  <button onClick={() => publish()} disabled={publishing} className="btn-primary flex-1 sm:flex-none">
-                    {publishing && !scheduleAt ? <><RefreshCw className="h-4 w-4 animate-spin" /> Publishing…</> : <><Send className="h-4 w-4" /> Publish now</>}
+                  <button onClick={() => publish()} disabled={publishing || sent} className="btn-primary flex-1 sm:flex-none">
+                    {publishing && !scheduleAt ? <><RefreshCw className="h-4 w-4 animate-spin" /> Publishing…</> : sent ? <><Check className="h-4 w-4" /> Published</> : <><Send className="h-4 w-4" /> Publish now</>}
                   </button>
                 </div>
               </div>
@@ -633,10 +643,10 @@ export function StudioClient() {
                   />
                   <button
                     onClick={() => publish(scheduleAt ? new Date(scheduleAt).toISOString() : undefined)}
-                    disabled={!scheduleAt || publishing}
+                    disabled={!scheduleAt || publishing || sent}
                     className="btn-primary text-sm"
                   >
-                    {publishing ? <><RefreshCw className="h-4 w-4 animate-spin" /> Scheduling…</> : "Confirm schedule"}
+                    {publishing ? <><RefreshCw className="h-4 w-4 animate-spin" /> Scheduling…</> : sent ? "Scheduled" : "Confirm schedule"}
                   </button>
                 </div>
               )}

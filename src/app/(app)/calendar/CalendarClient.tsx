@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ChevronLeft, ChevronRight, Upload, Download, Plus, Trash2, X, Clock,
   Image as ImageIcon, Film, Video, Type as TypeIcon, Smile, Bold, Italic,
-  Sparkles, Send,
+  Sparkles, Send, RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Festival, Post } from "@/lib/types";
@@ -587,22 +588,45 @@ function Composer({
   const [type, setType] = useState<Post["type"]>(entry?.type ?? "image");
   const [tags, setTags] = useState((entry?.hashtags ?? []).join(" "));
   const [image, setImage] = useState<string | undefined>(entry?.image);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
   const captionRef = useRef<HTMLTextAreaElement>(null);
   const imgRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
 
   const hashtags = tags.split(/[\s,]+/).map((t) => t.trim()).filter(Boolean).map((t) => (t.startsWith("#") ? t : `#${t}`));
 
-  function build(status: "draft" | "scheduled"): Planned {
-    return {
-      id: entry?.id ?? `cal_${d}_${Math.abs(hashStr(caption + time))}`,
-      date: d, time: time || undefined,
-      title: caption.trim().split("\n")[0].slice(0, 48) || "Untitled post",
-      caption: caption.trim(), type, hashtags, image, status,
-    };
-  }
-  function save(status: "draft" | "scheduled") {
+  // Genuine save: a draft becomes a real DB draft; Schedule creates a real
+  // scheduled post on the connected Facebook Page (no fake "planned" note).
+  async function save(status: "draft" | "scheduled") {
     if (!caption.trim()) { captionRef.current?.focus(); return; }
-    onSave(build(status));
+    setBusy(true); setErr("");
+    const title = caption.trim().split("\n")[0].slice(0, 48) || "Untitled post";
+    const fullCaption = hashtags.length ? `${caption.trim()}\n\n${hashtags.join(" ")}` : caption.trim();
+    try {
+      if (status === "draft") {
+        const res = await fetch("/api/posts", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, caption: fullCaption, type, hashtags, assetUrl: image, source: "calendar" }),
+        });
+        if (!res.ok) throw new Error("Couldn't save the draft.");
+      } else {
+        const dt = new Date(`${d}T${time || "20:00"}`);
+        const res = await fetch("/api/publish", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, caption: fullCaption, type, hashtags, assetUrl: image, scheduledAt: dt.toISOString(), source: "calendar" }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.needsConnection ? "Connect your Facebook Page first (Settings → Connect) to schedule." : data.error || "Couldn't schedule this post.");
+      }
+      if (entry) onDelete(entry.id); // promote an old local plan → real post
+      onClose();
+      router.refresh();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
@@ -698,10 +722,13 @@ function Composer({
               <button onClick={() => onDelete(entry.id)} className="btn-ghost text-sm text-rose-600 hover:bg-rose-50"><Trash2 className="h-4 w-4" /> Delete</button>
             ) : <span />}
             <div className="ml-auto flex gap-2">
-              <button onClick={() => save("draft")} className="btn-ghost text-sm">Save draft</button>
-              <button onClick={() => save("scheduled")} className="btn-primary text-sm"><Send className="h-4 w-4" /> Schedule</button>
+              <button onClick={() => save("draft")} disabled={busy} className="btn-ghost text-sm disabled:opacity-60">Save draft</button>
+              <button onClick={() => save("scheduled")} disabled={busy} className="btn-primary text-sm disabled:opacity-60">
+                {busy ? <><RefreshCw className="h-4 w-4 animate-spin" /> Working…</> : <><Send className="h-4 w-4" /> Schedule</>}
+              </button>
             </div>
           </div>
+          {err && <p className="mt-2 text-right text-xs font-medium text-rose-600">{err}</p>}
         </div>
 
         {/* Live preview */}

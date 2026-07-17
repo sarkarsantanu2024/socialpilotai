@@ -4,8 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Copy, ShieldCheck, Clock, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { planId, getPlan, type PlanId } from "@/lib/plans";
 
-type Plan = { id: "starter" | "pro"; name: string; price: number; features: string[] };
+type Plan = { id: PlanId; name: string; price: number; features: string[] };
 type Billing = { plan: string; planStatus: string; planRenewsAt: string | null; pending: { id: string; plan: string; amount: number; createdAt: string } | null } | null;
 type Pending = { id: string; plan: string; amount: number; upiRef: string | null; orgName: string; createdAt: string };
 
@@ -21,6 +22,8 @@ export function BillingClient({
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const current = billing?.plan ?? "trial";
+  const currentId = planId(current); // normalise legacy starter/pro
+  const currentName = currentId === "trial" ? "Trial" : getPlan(currentId)?.name ?? current;
 
   async function submitPayment() {
     if (!pay) return;
@@ -45,7 +48,7 @@ export function BillingClient({
         <div className="card flex flex-wrap items-center justify-between gap-3 p-5">
           <div>
             <p className="text-sm text-ink-500">Current plan</p>
-            <p className="text-2xl font-bold capitalize">{current}{current !== "trial" && <span className="ml-2 align-middle text-sm font-medium text-emerald-600">● {billing.planStatus}</span>}</p>
+            <p className="text-2xl font-bold">{currentName}{currentId !== "trial" && <span className="ml-2 align-middle text-sm font-medium text-emerald-600">● {billing.planStatus}</span>}</p>
             {billing.planRenewsAt && <p className="text-xs text-ink-400">Renews {new Date(billing.planRenewsAt).toLocaleDateString()}</p>}
           </div>
           {billing.pending && (
@@ -77,12 +80,12 @@ export function BillingClient({
       {/* Plan cards */}
       <div className="grid gap-4 sm:grid-cols-2">
         {plans.map((plan) => {
-          const active = current === plan.id;
+          const active = currentId === plan.id;
           return (
-            <div key={plan.id} className={cn("card p-6", plan.id === "pro" && "ring-2 ring-brand-500")}>
+            <div key={plan.id} className={cn("card p-6", plan.id === "ho" && "ring-2 ring-brand-500")}>
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-bold">{plan.name}</h3>
-                {plan.id === "pro" && <span className="chip bg-brand-50 text-brand-700">Most popular</span>}
+                {plan.id === "ho" && <span className="chip bg-brand-50 text-brand-700">Most popular</span>}
               </div>
               <p className="mt-2 text-3xl font-extrabold">₹{plan.price}<span className="text-sm font-medium text-ink-500">/month</span></p>
               <ul className="mt-4 space-y-2 text-sm text-ink-600">
@@ -91,7 +94,7 @@ export function BillingClient({
               <button
                 disabled={active}
                 onClick={() => setPay(plan)}
-                className={cn("mt-6 w-full", active ? "btn-ghost cursor-default" : plan.id === "pro" ? "btn-primary" : "btn-ghost")}
+                className={cn("mt-6 w-full", active ? "btn-ghost cursor-default" : plan.id === "ho" ? "btn-primary" : "btn-ghost")}
               >
                 {active ? "Current plan" : `Upgrade to ${plan.name}`}
               </button>
