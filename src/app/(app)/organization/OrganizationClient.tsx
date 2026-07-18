@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  Building2, Plus, Users, Link2, Copy, Check, Trash2, Crown, Store, Shield, Upload, X, Send, History, BarChart3, CheckCircle2, RefreshCw, Facebook, MessageCircle, Settings, Palette, Pencil,
+  Building2, Plus, Users, Link2, Unlink, Copy, Check, Trash2, Crown, Store, Shield, Upload, X, Send, History, BarChart3, CheckCircle2, RefreshCw, Facebook, MessageCircle, Settings, Palette, Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ROLE_INFO, type Role } from "@/components/layout/role";
@@ -316,7 +316,17 @@ function ColorField({ label, value, onChange }: { label: string; value: string; 
 
 function ConnectionsCard({ centers }: { centers: Center[] }) {
   const [connecting, setConnecting] = useState<string | null>(null);
+  const [disconnecting, setDisconnecting] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+
+  async function disconnectCenter(id: string) {
+    if (!window.confirm("Disconnect this center's Facebook Page? You'll need to reconnect (or send the WhatsApp link again) before it can publish.")) return;
+    setDisconnecting(id);
+    await fetch("/api/center/disconnect", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ centerId: id }),
+    }).catch(() => {});
+    window.location.reload();
+  }
 
   async function connect(id: string) {
     setConnecting(id);
@@ -385,6 +395,20 @@ function ConnectionsCard({ centers }: { centers: Center[] }) {
                   {copied === c.id ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
                 </button>
               </>
+            )}
+
+            {/* Disconnect (only when connected) — removes this center's page + tokens. */}
+            {c.connected && (
+              <button
+                onClick={() => disconnectCenter(c.id)}
+                disabled={disconnecting === c.id}
+                className="btn-ghost shrink-0 px-2.5 py-1.5 text-xs text-rose-600 disabled:opacity-60"
+                title="Disconnect Facebook Page"
+              >
+                {disconnecting === c.id
+                  ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> …</>
+                  : <><Unlink className="h-3.5 w-3.5" /> Disconnect</>}
+              </button>
             )}
 
             {/* HO connects a Page they admin directly. */}
