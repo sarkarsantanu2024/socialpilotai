@@ -41,9 +41,15 @@ export const navItems: NavItem[] = [
   { href: "/settings", label: "Settings", icon: Settings, roles: MGMT },
 ];
 
-/** Filter the menu to what a given role may see. superadmin sees all. */
-export function navForRole(role: Role | null): NavItem[] {
+/** Filter the menu to what a given role may see. superadmin sees all.
+ *  `isHO` = the account is a real head office (ho plan or >1 center); when false
+ *  the "Organization" (HO console) item is hidden for a single-center owner. */
+export function navForRole(role: Role | null, isHO = true): NavItem[] {
   const r = role ?? "staff"; // most-restrictive default while the role resolves
   if (r === "superadmin") return navItems;
-  return navItems.filter((it) => it.roles.includes(r));
+  return navItems.filter((it) => {
+    if (!it.roles.includes(r)) return false;
+    if (it.href === "/organization" && !isHO) return false; // single-center → no HO console
+    return true;
+  });
 }
