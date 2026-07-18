@@ -66,6 +66,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     activePageId: string | null;
   } | null>(null);
   const [role, setRole] = useState<Role | null>(null);
+  const [isHO, setIsHO] = useState(false); // real head office → show the Organization console
   const headerRef = useRef<HTMLDivElement>(null);
 
   // When a real Facebook Page is connected, the header shows IT (not the demo profile).
@@ -81,6 +82,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       .then((d) => {
         const centers: { id: string; role: Role }[] = d?.centers ?? [];
         setRole(accountRole(!!d?.isSuperadmin, !!d?.isOwner, centers, d?.activeCenterId ?? null));
+        setIsHO(!!d?.isHO);
       })
       .catch(() => {});
     // Real notifications for the active center.
@@ -182,7 +184,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           className="flex flex-col gap-0.5 overflow-y-auto p-3"
           style={{ maxHeight: "calc(100vh - 4rem)" }}
         >
-          {navForRole(role).map((item) => {
+          {navForRole(role, isHO).map((item) => {
             const active = pathname === item.href;
             const Icon = item.icon;
             return (

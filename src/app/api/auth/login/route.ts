@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { verifyLogin } from "@/lib/authService";
 import { setSession, HO_MODE } from "@/lib/session";
 import { firstAccessibleCenterId, isSuperadmin } from "@/lib/access";
+import { isHeadOffice } from "@/lib/org";
 
 export async function POST(req: Request) {
   try {
@@ -21,10 +22,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, next: "/admin" });
     }
 
-    // Owners / HO start in Head-office mode (org-wide, HO branding) on their
-    // Organization console. Managers & staff land on their own center's dashboard.
-    const isOwner = user.memberships.some((m) => m.role === "owner");
-    if (isOwner) {
+    // A real head-office owner starts in HO mode on the Organization console.
+    // A single-center owner has no HO console (menu hidden) → land in their own
+    // center's dashboard. Managers & staff always land on their center dashboard.
+    const ownerMembership = user.memberships.find((m) => m.role === "owner");
+    if (ownerMembership && (await isHeadOffice(ownerMembership.organizationId))) {
       setSession(user.id, HO_MODE);
       return NextResponse.json({ ok: true, next: "/organization" });
     }

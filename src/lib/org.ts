@@ -9,7 +9,19 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { isSuperadmin } from "@/lib/access";
 import { signConnectToken } from "@/lib/fb/connectToken";
+import { planId } from "@/lib/plans";
 import type { BusinessType } from "@/lib/types";
+
+/** True when an org is a real head office: on the ho plan OR with >1 branch.
+ *  Drives whether the "Organization" (HO console) menu + landing are shown. */
+export async function isHeadOffice(orgId: string | null | undefined): Promise<boolean> {
+  if (!orgId) return false;
+  const org = await prisma.organization.findUnique({
+    where: { id: orgId },
+    select: { plan: true, _count: { select: { centers: true } } },
+  });
+  return planId(org?.plan) === "ho" || (org?._count.centers ?? 0) > 1;
+}
 
 const DEFAULT_KIT = { primary: "#244fdb", secondary: "#0ea5e9", accent: "#f59e0b", font: "Poppins" };
 const INVITE_TTL_DAYS = 14;
