@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Facebook, Check, Building2, Palette, Link2, CreditCard, ShieldCheck, Upload, X, Loader2, Plug, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
+import { MessageModal } from "@/components/ui/MessageModal";
 import { useBrand } from "@/lib/brand/store";
 import type { BusinessType } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -26,7 +27,17 @@ export interface CenterDetails {
   address: string;
 }
 
-export function SettingsClient({ plan, details, autoPost }: { plan: PlanInfo; details: CenterDetails; autoPost: boolean }) {
+export interface AutoPostConfigUI {
+  days: number[];
+  time: string;
+  frequency: "weekly" | "fortnightly" | "monthly";
+  startDate: string;
+  endDate: string;
+  slideshow: boolean;
+  festivals: boolean;
+}
+
+export function SettingsClient({ plan, details, autoPost, autoPostConfig }: { plan: PlanInfo; details: CenterDetails; autoPost: boolean; autoPostConfig: AutoPostConfigUI }) {
   const { brand, setProfile, setKit } = useBrand();
   const { profile, kit } = brand;
   const [saved, setSaved] = useState(false);
@@ -241,7 +252,7 @@ export function SettingsClient({ plan, details, autoPost }: { plan: PlanInfo; de
           </div>
         </section>
 
-        <AutoPostCard initial={autoPost} />
+        <AutoPostCard initial={autoPost} initialConfig={autoPostConfig} />
 
         <PlanCard plan={plan} />
       </div>
@@ -251,48 +262,148 @@ export function SettingsClient({ plan, details, autoPost }: { plan: PlanInfo; de
 
 // Opt-in weekly auto-content for THIS center. Off by default; when on, the plan
 // cron schedules the week's posts ahead for review.
-function AutoPostCard({ initial }: { initial: boolean }) {
-  const [on, setOn] = useState(initial);
-  const [saving, setSaving] = useState(false);
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-  async function toggle() {
-    const next = !on;
-    setOn(next);
+function AutoPostCard({ initial, initialConfig }: { initial: boolean; initialConfig: AutoPostConfigUI }) {
+  const [on, setOn] = useState(initial);
+  const [cfg, setCfg] = useState<AutoPostConfigUI>(initialConfig);
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [dialog, setDialog] = useState<{ title: string; body: string; tone: "success" | "error" } | null>(null);
+
+  function patch(p: Partial<AutoPostConfigUI>) {
+    setCfg((c) => ({ ...c, ...p }));
+    setDirty(true);
+  }
+  function toggleDay(d: number) {
+    patch({ days: cfg.days.includes(d) ? cfg.days.filter((x) => x !== d) : [...cfg.days, d].sort() });
+  }
+
+  async function save(nextOn: boolean) {
+    if (nextOn && !cfg.days.length) {
+      setDialog({ title: "Pick at least one day", body: "Choose which day(s) of the week the auto-posts should go out.", tone: "error" });
+      return;
+    }
+    if (cfg.startDate && cfg.endDate && cfg.endDate < cfg.startDate) {
+      setDialog({ title: "Check the date range", body: "The end date is before the start date.", tone: "error" });
+      return;
+    }
     setSaving(true);
     try {
       const res = await fetch("/api/center/autopost", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ autoPost: next }),
+        body: JSON.stringify({ autoPost: nextOn, config: cfg }),
       });
       const d = await res.json().catch(() => ({}));
-      if (!d.ok) setOn(!next); // revert on failure
+      if (d.ok) {
+        setOn(nextOn);
+        setDirty(false);
+        if (nextOn) setDialog({ title: "Auto-posting is on", body: "Posts will be generated a few days ahead on your schedule — review or edit them any time in Posts → Scheduled.", tone: "success" });
+      } else {
+        setDialog({ title: "Couldn't save", body: d.error ?? "Please try again.", tone: "error" });
+      }
     } catch {
-      setOn(!next);
+      setDialog({ title: "Couldn't save", body: "Network error — please try again.", tone: "error" });
     }
     setSaving(false);
   }
 
   return (
     <section className="card p-5">
+      {dialog && (
+        <MessageModal title={dialog.title} tone={dialog.tone} onClose={() => setDialog(null)}>
+          {dialog.body}
+        </MessageModal>
+      )}
+
       <div className="mb-1 flex items-center gap-2">
         <Sparkles className="h-5 w-5 text-brand-500" />
         <h2 className="font-semibold">Auto-posting</h2>
       </div>
       <p className="text-xs text-ink-400">
-        2 AI posts a week (Wed &amp; Sat, 8&nbsp;PM) plus festival greetings, scheduled a few days ahead so you can
-        review, edit or delete them in <b>Posts → Scheduled</b> before they go live.
+        AI posts on the schedule you set — a mix of single images and slideshows, each with different content — plus
+        optional festival greetings. Everything is scheduled a few days ahead so you can review, edit or delete it in{" "}
+        <b>Posts → Scheduled</b> before it goes live.
       </p>
+
       <div className="mt-3 flex items-center justify-between gap-3">
         <span className="text-sm font-medium">{on ? "On for this center" : "Off"}</span>
         <button
-          onClick={toggle}
+          onClick={() => save(!on)}
           disabled={saving}
           aria-pressed={on}
           className={cn("relative h-6 w-11 shrink-0 rounded-full transition disabled:opacity-60", on ? "bg-brand-600" : "bg-ink-300")}
         >
           <span className={cn("absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all", on ? "left-[22px]" : "left-0.5")} />
         </button>
+      </div>
+
+      {/* Schedule details */}
+      <div className={cn("mt-4 space-y-3 border-t border-ink-100 pt-4", !on && !dirty && "opacity-70")}>
+        <div>
+          <label className="label">Days of the week</label>
+          <div className="flex flex-wrap gap-1.5">
+            {DAY_LABELS.map((label, d) => (
+              <button
+                key={d}
+                onClick={() => toggleDay(d)}
+                className={cn(
+                  "rounded-lg border px-2.5 py-1.5 text-xs font-medium transition",
+                  cfg.days.includes(d) ? "border-brand-500 bg-brand-50 text-brand-700" : "border-ink-200 text-ink-500 hover:bg-ink-50"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1 text-[11px] text-ink-400">{cfg.days.length} post{cfg.days.length === 1 ? "" : "s"} a week. Recommended: Mon, Wed &amp; Sat.</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label">Post time (IST)</label>
+            <input type="time" value={cfg.time} onChange={(e) => patch({ time: e.target.value })} className="input text-sm" />
+          </div>
+          <div>
+            <label className="label">Repeat</label>
+            <select
+              value={cfg.frequency}
+              onChange={(e) => patch({ frequency: e.target.value as AutoPostConfigUI["frequency"] })}
+              className="input text-sm"
+            >
+              <option value="weekly">Every week</option>
+              <option value="fortnightly">Every 2 weeks</option>
+              <option value="monthly">Monthly (first week)</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label">Start date <span className="font-normal text-ink-400">(optional)</span></label>
+            <input type="date" value={cfg.startDate} onChange={(e) => patch({ startDate: e.target.value })} className="input text-sm" />
+          </div>
+          <div>
+            <label className="label">End date <span className="font-normal text-ink-400">(optional)</span></label>
+            <input type="date" value={cfg.endDate} onChange={(e) => patch({ endDate: e.target.value })} className="input text-sm" />
+          </div>
+        </div>
+
+        <label className="flex items-center gap-2 text-sm text-ink-600">
+          <input type="checkbox" checked={cfg.slideshow} onChange={(e) => patch({ slideshow: e.target.checked })} />
+          Publish the weekly offer post as a photo slideshow (multi-image)
+        </label>
+        <label className="flex items-center gap-2 text-sm text-ink-600">
+          <input type="checkbox" checked={cfg.festivals} onChange={(e) => patch({ festivals: e.target.checked })} />
+          Add festival greeting posts
+        </label>
+
+        {dirty && (
+          <button onClick={() => save(on)} disabled={saving} className="btn-primary w-full text-sm">
+            {saving ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</> : "Save schedule"}
+          </button>
+        )}
       </div>
     </section>
   );
@@ -310,7 +421,10 @@ type FbStatus = {
 
 function FacebookCard() {
   const [status, setStatus] = useState<FbStatus | null>(null);
-  const [banner, setBanner] = useState<string | null>(null);
+  // Connect-flow outcomes show as a DIALOG (never a transient banner/toast).
+  const [dialog, setDialog] = useState<{ title: string; body: string; tone: "success" | "warning" | "error" | "info" } | null>(null);
+  const [pendingConnect, setPendingConnect] = useState<{ centerName: string; pages: { id: string; name: string }[] } | null>(null);
+  const [pendingBusy, setPendingBusy] = useState(false);
 
   async function load() {
     try {
@@ -325,18 +439,50 @@ function FacebookCard() {
     load();
     // Surface the ?fb=... result from the OAuth redirect.
     const fb = new URLSearchParams(window.location.search).get("fb");
-    const msg: Record<string, string> = {
-      connected: "✅ Facebook connected! You can now publish live.",
-      not_configured: "⚠️ No Meta app configured yet — see FACEBOOK_SETUP.md.",
-      denied: "Connection cancelled.",
-      no_pages: "No Facebook Pages found on that account.",
-      token_failed: "Couldn't complete the Facebook handshake. Try again.",
-    };
-    if (fb && msg[fb]) {
-      setBanner(msg[fb]);
-      window.history.replaceState({}, "", "/settings");
+    if (!fb) return;
+    window.history.replaceState({}, "", "/settings");
+    if (fb === "wrong_page") {
+      // Mismatched connect — nothing was linked; let the user decide in a dialog.
+      fetch("/api/fb/pending", { cache: "no-store" })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.pages?.length) setPendingConnect({ centerName: d.centerName, pages: d.pages });
+          else setDialog({ title: "Connection not completed", body: "The Facebook connection was not completed.", tone: "error" });
+        })
+        .catch(() => {});
+      return;
     }
+    const msg: Record<string, { title: string; body: string; tone: "success" | "warning" | "error" | "info" }> = {
+      connected: { title: "Facebook connected", body: "You can now publish live to your Page.", tone: "success" },
+      not_configured: { title: "No Meta app configured", body: "No Meta app configured yet — see FACEBOOK_SETUP.md.", tone: "warning" },
+      denied: { title: "Connection cancelled", body: "The Facebook connection was cancelled.", tone: "info" },
+      no_pages: { title: "No Pages found", body: "No Facebook Pages found on that account. Sign in with the account that manages your Page.", tone: "warning" },
+      token_failed: { title: "Connection failed", body: "Couldn't complete the Facebook handshake. Please try again.", tone: "error" },
+    };
+    if (msg[fb]) setDialog(msg[fb]);
   }, []);
+
+  async function confirmPending(pageId: string) {
+    setPendingBusy(true);
+    const res = await fetch("/api/fb/pending", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pageId }),
+    }).catch(() => null);
+    setPendingBusy(false);
+    setPendingConnect(null);
+    const ok = res && (await res.json().catch(() => ({ ok: false }))).ok;
+    setDialog(ok
+      ? { title: "Page connected", body: "The Page is now connected to this center.", tone: "success" }
+      : { title: "Connection failed", body: "Couldn't connect the Page — please try again.", tone: "error" });
+    load();
+  }
+  async function cancelPending() {
+    setPendingBusy(true);
+    await fetch("/api/fb/pending", { method: "DELETE" }).catch(() => {});
+    setPendingBusy(false);
+    setPendingConnect(null);
+    setDialog({ title: "Nothing was connected", body: "Sign in with the Facebook account that manages this center's Page, or ask Head Office to send the WhatsApp connect link.", tone: "info" });
+    load();
+  }
 
   async function selectPage(id: string) {
     await fetch("/api/fb/select-page", {
@@ -354,8 +500,37 @@ function FacebookCard() {
 
   return (
     <div className="rounded-xl border border-ink-100 p-4">
-      {banner && (
-        <p className="mb-3 rounded-lg bg-brand-50 px-3 py-2 text-xs text-brand-800">{banner}</p>
+      {dialog && (
+        <MessageModal title={dialog.title} tone={dialog.tone} onClose={() => setDialog(null)}>
+          {dialog.body}
+        </MessageModal>
+      )}
+
+      {pendingConnect && (
+        <MessageModal
+          title="That doesn't look like this center's Page"
+          tone="warning"
+          onClose={() => { if (!pendingBusy) void cancelPending(); }}
+          actions={
+            <button onClick={cancelPending} disabled={pendingBusy} className="btn-ghost text-sm">
+              {pendingBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Cancel — keep it unconnected"}
+            </button>
+          }
+        >
+          <p>
+            The Facebook account you signed in with doesn&apos;t manage a Page that looks like{" "}
+            <b>{pendingConnect.centerName}</b>&apos;s. <b>Nothing has been connected.</b>
+          </p>
+          <p className="mt-2">If one of these Pages really is the right one, connect it explicitly:</p>
+          <div className="mt-2 space-y-1.5">
+            {pendingConnect.pages.map((p) => (
+              <button key={p.id} onClick={() => confirmPending(p.id)} disabled={pendingBusy} className="btn-ghost w-full justify-between text-left text-sm">
+                <span className="truncate">{p.name}</span>
+                <span className="shrink-0 text-xs font-semibold text-brand-600">Connect anyway →</span>
+              </button>
+            ))}
+          </div>
+        </MessageModal>
       )}
 
       <div className="flex items-center gap-3">

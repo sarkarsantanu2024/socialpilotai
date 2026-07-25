@@ -36,6 +36,9 @@ model Tenant {
   invites        Invite[]      @relation("CenterInvites")
   onboarded      Boolean       @default(false) // completed the setup wizard
   autoPost       Boolean       @default(false) // opt-in: auto-generate & schedule weekly posts
+  // Auto-post schedule config (days of week, IST time, frequency, date range,
+  // slideshow/festival toggles) — shape: AutoPostConfig in lib/autopost/strategy.
+  autoPostConfig Json?
 
   businessProfile BusinessProfile?
   brandKit        BrandKit?
@@ -239,6 +242,9 @@ model Post {
   hashtags    String[]
   music       String?
   assetUrl    String?
+  // Extra slide images for a multi-photo (carousel/slideshow) post. Empty for a
+  // single-image post; when set, assetUrl is the first slide (card thumbnail).
+  assetUrls   String[]  @default([])
   scheduledAt DateTime?
   publishedAt DateTime?
   fbPostId    String?

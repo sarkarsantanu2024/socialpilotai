@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { FB_GRAPH_VERSION, fbAppConfigured, fbRedirectUri } from "@/lib/config";
-import { persistConnection, type FbPageInput } from "@/lib/fb/connection";
+import { persistConnection, bestPageMatch, centerDisplayName, type FbPageInput } from "@/lib/fb/connection";
 import { rememberPageToken } from "@/lib/fb/store";
 import { getSessionTenantId } from "@/lib/session";
 import { decodeOAuthState } from "@/lib/fb/oauthState";
@@ -114,6 +114,26 @@ export async function GET(req: Request) {
         });
       } catch {
         /* no leads scope — skip */
+      }
+    }
+
+    // Wrong-branch guard (logged-in flow only): if NONE of the account's Pages
+    // looks like this center's Page (no shared name token), do NOT connect —
+    // store them as PENDING and let the user explicitly confirm or cancel in a
+    // dialog. This is what stops e.g. the Ramnagar-only account from silently
+    // connecting the Ramnagar Page to the Barasat center. The connect-link flow
+    // skips this: the branch owner is connecting their own Page on purpose.
+    if (!connectCenterId) {
+      const centerName = await centerDisplayName(tenantId);
+      const { score } = bestPageMatch(pages, centerName);
+      if (centerName && score === 0) {
+        try {
+          await persistConnection(tenantId, { userName: me.name, userToken, adAccountId, pages }, { pending: true });
+        } catch (e) {
+          console.warn("[fb/callback] pending persist failed:", (e as Error).message);
+          return fail("token_failed");
+        }
+        return back("wrong_page");
       }
     }
 

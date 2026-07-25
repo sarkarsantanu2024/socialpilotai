@@ -69,7 +69,7 @@ export default async function PostsPage() {
         </div>
       )}
 
-      <PostsClient initial={recent} />
+      <PostsClient initial={recent} notConnected={!live} centerName={centerName} />
     </div>
   );
 }
