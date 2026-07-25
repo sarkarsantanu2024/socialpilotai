@@ -15,7 +15,6 @@ import {
   Hash,
   RefreshCw,
   Wand2,
-  Play,
   Send,
   CalendarClock,
   X,
@@ -117,9 +116,11 @@ export function StudioClient() {
   // Bumped each generate so swiped slides remount with fresh image load state.
   const [genKey, setGenKey] = useState(0);
   // Own creative the user uploads. Images: one or more data-URLs (a carousel can
-  // take one per slide). Video/reel: a single clip (name only, no preview).
+  // take one per slide). Video/reel: the actual File (uploaded to Facebook in
+  // chunks on publish) + an object URL for the in-app preview.
   const [imgs, setImgs] = useState<string[]>([]);
-  const [clip, setClip] = useState<{ name: string } | null>(null);
+  const [clip, setClip] = useState<{ name: string; file: File; url: string } | null>(null);
+  const [uploadPct, setUploadPct] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   // Real AI (Imagen) image generation — Pro feature.
@@ -176,7 +177,10 @@ export function StudioClient() {
     if (!list.length) return;
     if (isVideo) {
       const f = list.find((x) => x.type.startsWith("video/")) ?? list[0];
-      setClip({ name: f.name });
+      setClip((prev) => {
+        if (prev) URL.revokeObjectURL(prev.url);
+        return { name: f.name, file: f, url: URL.createObjectURL(f) };
+      });
       return;
     }
     const picked = list.filter((f) => f.type.startsWith("image/"));
@@ -287,9 +291,74 @@ export function StudioClient() {
     }
   }
 
+  // Video/reel: upload the clip to Facebook in <4MB chunks (resumable upload),
+  // then finish with the caption. NEVER falls back to a caption-only text post —
+  // no clip means no publish.
+  async function publishVideo(when?: string) {
+    if (!result) return;
+    if (!clip) {
+      setPublished({ live: false, permalink: "", pageName: null, scheduled: false, error: "Add your video clip first — the caption is ready, the clip is missing." });
+      return;
+    }
+    setPublishing(true);
+    setPublished(null);
+    setUploadPct(0);
+    const caption = `${result.caption}\n\n${result.hashtags.join(" ")}`;
+    try {
+      const startRes = await fetch("/api/publish/video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "start", fileSize: clip.file.size }),
+      });
+      const start = await startRes.json();
+      if (!start.ok) throw new Error(start.error ?? "Couldn't start the video upload.");
+
+      const CHUNK = 3 * 1024 * 1024; // < serverless 4.5MB request-body limit
+      let offset: number = start.startOffset ?? 0;
+      while (offset < clip.file.size) {
+        const fd = new FormData();
+        fd.set("sessionId", start.sessionId);
+        fd.set("startOffset", String(offset));
+        fd.set("chunk", clip.file.slice(offset, Math.min(offset + CHUNK, clip.file.size)));
+        const res = await fetch("/api/publish/video", { method: "POST", body: fd });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error ?? "The upload failed part-way — please try again.");
+        // Facebook reports how much it has; trust it over our own arithmetic.
+        offset = Number(data.startOffset) > offset ? Number(data.startOffset) : offset + CHUNK;
+        setUploadPct(Math.min(99, Math.round((Math.min(offset, clip.file.size) / clip.file.size) * 100)));
+      }
+
+      const finRes = await fetch("/api/publish/video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "finish",
+          sessionId: start.sessionId,
+          videoId: start.videoId,
+          caption,
+          title: result.title,
+          type: fmt.postType,
+          hashtags: result.hashtags,
+          music: result.music && result.music !== "—" ? result.music : undefined,
+          scheduledAt: when || undefined,
+        }),
+      });
+      const fin = await finRes.json();
+      if (!fin.ok) throw new Error(fin.error ?? "Facebook couldn't finish the upload.");
+      setPublished({ live: true, permalink: fin.permalink ?? "", pageName: fin.pageName ?? null, scheduled: !!fin.scheduled });
+      setShowSchedule(false);
+      setSent(true);
+    } catch (e) {
+      setPublished({ live: false, permalink: "", pageName: null, scheduled: false, error: (e as Error).message });
+    }
+    setUploadPct(null);
+    setPublishing(false);
+  }
+
   // Publish (or schedule) to the connected Facebook Page (real if connected, else demo).
   async function publish(when?: string) {
     if (!result) return;
+    if (isVideo) return publishVideo(when);
     setPublishing(true);
     setPublished(null);
     // The images to publish (stock http URLs, or AI/uploaded data-URLs). Facebook
@@ -414,7 +483,7 @@ export function StudioClient() {
                 <p className="text-[11px] text-ink-400">Your clip</p>
               </div>
               <button
-                onClick={() => setClip(null)}
+                onClick={() => setClip((prev) => { if (prev) URL.revokeObjectURL(prev.url); return null; })}
                 className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-ink-400 hover:bg-ink-100 hover:text-ink-700"
                 aria-label="Remove clip"
               >
@@ -617,8 +686,21 @@ export function StudioClient() {
                   <button onClick={() => setShowSchedule((s) => !s)} className="btn-ghost flex-1 sm:flex-none">
                     <CalendarClock className="h-4 w-4" /> Schedule
                   </button>
-                  <button onClick={() => publish()} disabled={publishing || sent} className="btn-primary flex-1 sm:flex-none">
-                    {publishing && !scheduleAt ? <><RefreshCw className="h-4 w-4 animate-spin" /> Publishing…</> : sent ? <><Check className="h-4 w-4" /> Published</> : <><Send className="h-4 w-4" /> Publish now</>}
+                  <button
+                    onClick={() => publish()}
+                    disabled={publishing || sent || (isVideo && !clip)}
+                    title={isVideo && !clip ? "Add your video clip first" : undefined}
+                    className="btn-primary flex-1 sm:flex-none"
+                  >
+                    {publishing && uploadPct !== null ? (
+                      <><RefreshCw className="h-4 w-4 animate-spin" /> Uploading… {uploadPct}%</>
+                    ) : publishing && !scheduleAt ? (
+                      <><RefreshCw className="h-4 w-4 animate-spin" /> Publishing…</>
+                    ) : sent ? (
+                      <><Check className="h-4 w-4" /> Published</>
+                    ) : (
+                      <><Send className="h-4 w-4" /> Publish now</>
+                    )}
                   </button>
                 </div>
               </div>
@@ -643,10 +725,10 @@ export function StudioClient() {
                   />
                   <button
                     onClick={() => publish(scheduleAt ? new Date(scheduleAt).toISOString() : undefined)}
-                    disabled={!scheduleAt || publishing || sent}
+                    disabled={!scheduleAt || publishing || sent || (isVideo && !clip)}
                     className="btn-primary text-sm"
                   >
-                    {publishing ? <><RefreshCw className="h-4 w-4 animate-spin" /> Scheduling…</> : sent ? "Scheduled" : "Confirm schedule"}
+                    {publishing && uploadPct !== null ? <><RefreshCw className="h-4 w-4 animate-spin" /> Uploading… {uploadPct}%</> : publishing ? <><RefreshCw className="h-4 w-4 animate-spin" /> Scheduling…</> : sent ? "Scheduled" : "Confirm schedule"}
                   </button>
                 </div>
               )}
@@ -766,7 +848,7 @@ function ClipPreview({
   onPick,
 }: {
   ratio: string;
-  clip: { name: string } | null;
+  clip: { name: string; url: string } | null;
   title: string;
   cta: string;
   onPick: () => void;
@@ -785,26 +867,21 @@ function ClipPreview({
       </button>
     );
   }
+  // The real clip, playable in-place — what will actually be uploaded.
   return (
-    <div className="relative flex flex-col justify-between rounded-2xl bg-ink-900 p-4 text-white" style={{ aspectRatio: ratio }}>
-      {kit.logo ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={kit.logo} alt="" className="h-8 w-fit max-w-[45%] self-start rounded-md bg-white/20 object-contain p-1 backdrop-blur-sm" />
-      ) : (
-        <span className="self-start rounded-md bg-white/20 px-2 py-0.5 text-[11px] font-bold backdrop-blur-sm">{kit.logoText}</span>
-      )}
-      <span className="absolute inset-0 grid place-items-center">
-        <span className="grid h-14 w-14 place-items-center rounded-full bg-white/25 backdrop-blur">
-          <Play className="h-6 w-6" />
-        </span>
-      </span>
-      <div className="relative">
-        <p className="text-lg font-extrabold leading-tight drop-shadow-sm">{title}</p>
-        <span className="mt-2 inline-block rounded-md px-2.5 py-1 text-xs font-bold text-ink-900" style={{ background: kit.accent }}>
-          {cta}
-        </span>
-        <p className="mt-2 truncate text-[11px] text-white/70">🎬 {clip.name}</p>
+    <div className="relative overflow-hidden rounded-2xl bg-ink-900 text-white" style={{ aspectRatio: ratio }}>
+      <video src={clip.url} controls playsInline preload="metadata" className="absolute inset-0 h-full w-full object-contain" />
+      <div className="pointer-events-none absolute left-3 top-3">
+        {kit.logo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={kit.logo} alt="" className="h-8 w-fit max-w-[45%] rounded-md bg-white/20 object-contain p-1 backdrop-blur-sm" />
+        ) : (
+          <span className="rounded-md bg-white/20 px-2 py-0.5 text-[11px] font-bold backdrop-blur-sm">{kit.logoText}</span>
+        )}
       </div>
+      <p className="pointer-events-none absolute inset-x-3 bottom-14 truncate text-[11px] text-white/80 drop-shadow">
+        🎬 {clip.name} · {title}{cta ? ` · ${cta}` : ""}
+      </p>
     </div>
   );
 }

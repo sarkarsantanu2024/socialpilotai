@@ -33,6 +33,20 @@ export async function GET(req: Request) {
   const failed: { tenantId: string; postId: string; error: string }[] = [];
 
   for (const post of due) {
+    // Scheduled videos/reels: the clip was already uploaded to Facebook with a
+    // scheduled_publish_time, so FACEBOOK publishes it — we only flip our row.
+    // A video row without an fbPostId has no clip on Facebook; publishing it via
+    // /feed would post caption-only text, so mark it failed instead.
+    if (post.type === "reel" || post.type === "video") {
+      if (post.fbPostId) {
+        await prisma.post.update({ where: { id: post.id }, data: { status: "published", publishedAt: post.scheduledAt ?? now } });
+        published.push({ tenantId: post.tenantId, postId: post.id, fbPostId: post.fbPostId, live: true });
+      } else {
+        await prisma.post.update({ where: { id: post.id }, data: { status: "failed" } });
+        failed.push({ tenantId: post.tenantId, postId: post.id, error: "Video post has no uploaded clip — re-create it in Studio with the video attached." });
+      }
+      continue;
+    }
     const page = await tenantPage(post.tenantId).catch(() => null);
     try {
       const res = await publishPost({

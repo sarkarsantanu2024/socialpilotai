@@ -103,6 +103,96 @@ export async function publishPost(opts: {
   };
 }
 
+// ---- Organic: video / reel publishing (resumable upload) ----------
+// Facebook videos can't go through /photos or /feed — they use the resumable
+// upload protocol on /{page}/videos: start (returns a session + the byte range
+// wanted) → transfer (send chunks) → finish (set description / schedule). The
+// chunks are relayed through our API in <4MB pieces so the flow also works on
+// serverless hosts with small request-body limits (Vercel: 4.5MB).
+
+export interface VideoUploadSession {
+  sessionId: string;
+  videoId: string;
+  startOffset: number;
+  endOffset: number;
+}
+
+export async function videoUploadStart(pageId: string, pageToken: string, fileSize: number): Promise<VideoUploadSession> {
+  const res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${pageId}/videos`, {
+    method: "POST",
+    body: new URLSearchParams({ access_token: pageToken, upload_phase: "start", file_size: String(fileSize) }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error?.message ?? "Facebook video upload could not start");
+  return {
+    sessionId: data.upload_session_id as string,
+    videoId: data.video_id as string,
+    startOffset: Number(data.start_offset ?? 0),
+    endOffset: Number(data.end_offset ?? fileSize),
+  };
+}
+
+export async function videoUploadTransfer(
+  pageId: string,
+  pageToken: string,
+  sessionId: string,
+  startOffset: number,
+  chunk: Blob
+): Promise<{ startOffset: number; endOffset: number }> {
+  const form = new FormData();
+  form.append("access_token", pageToken);
+  form.append("upload_phase", "transfer");
+  form.append("upload_session_id", sessionId);
+  form.append("start_offset", String(startOffset));
+  form.append("video_file_chunk", chunk, "chunk.bin");
+  const res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${pageId}/videos`, { method: "POST", body: form });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error?.message ?? "Facebook video chunk upload failed");
+  return { startOffset: Number(data.start_offset), endOffset: Number(data.end_offset) };
+}
+
+export async function videoUploadFinish(opts: {
+  pageId: string;
+  pageToken: string;
+  sessionId: string;
+  description: string;
+  title?: string;
+  scheduledAt?: string; // ISO — Facebook itself publishes at this time
+}): Promise<void> {
+  const params = new URLSearchParams({
+    access_token: opts.pageToken,
+    upload_phase: "finish",
+    upload_session_id: opts.sessionId,
+    description: opts.description,
+  });
+  if (opts.title) params.set("title", opts.title);
+  if (opts.scheduledAt) {
+    params.set("published", "false");
+    params.set("scheduled_publish_time", String(Math.floor(new Date(opts.scheduledAt).getTime() / 1000)));
+  }
+  const res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${opts.pageId}/videos`, { method: "POST", body: params });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error?.message ?? "Facebook could not finish the video upload");
+}
+
+// Best-effort permalink for a just-uploaded video (Facebook may still be
+// processing it — fall back to the always-valid watch URL).
+export async function videoPermalink(videoId: string, pageToken: string): Promise<string> {
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/${GRAPH_VERSION}/${videoId}?fields=permalink_url&access_token=${encodeURIComponent(pageToken)}`,
+      { cache: "no-store" }
+    );
+    const data = await res.json();
+    if (data.permalink_url) {
+      return String(data.permalink_url).startsWith("http")
+        ? data.permalink_url
+        : `https://www.facebook.com${data.permalink_url}`;
+    }
+  } catch { /* processing lag — use fallback */ }
+  return `https://www.facebook.com/watch/?v=${videoId}`;
+}
+
 // Publish an image post to the Instagram Business account linked to the Page.
 // IG's Content Publishing API is a 2-step: create a media container from a
 // PUBLIC image_url, then publish it. NOTE: IG requires a public http(s) image

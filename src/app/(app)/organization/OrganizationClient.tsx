@@ -362,6 +362,18 @@ function ConnectionsCard({ centers }: { centers: Center[] }) {
 
   const connectedCount = centers.filter((c) => c.connected).length;
 
+  // Soft warning: the connected Page's name doesn't contain the center's
+  // distinguishing (last) name token — e.g. the "MMA Ramnagar" Page connected to
+  // the "MMA Barasat" center. A hint only; some businesses name Pages differently.
+  function looksLikeWrongPage(c: Center): boolean {
+    if (!c.connected || !c.pageName) return false;
+    const tokenize = (s: string) => s.toLowerCase().replace(/[!-/:-@[-`{-~]/g, " ").split(/\s+/).filter(Boolean);
+    const centerTokens = tokenize(c.name);
+    if (!centerTokens.length) return false;
+    const pageTokens = new Set(tokenize(c.pageName));
+    return !pageTokens.has(centerTokens[centerTokens.length - 1]);
+  }
+
   return (
     <div className="card p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -380,7 +392,14 @@ function ConnectionsCard({ centers }: { centers: Center[] }) {
               <p className="truncate text-sm font-medium text-ink-800">{c.name}</p>
               <p className="truncate text-xs">
                 {c.connected
-                  ? <span className="text-emerald-600">● {c.pageName ?? "Facebook Page"}</span>
+                  ? <>
+                      <span className="text-emerald-600">● {c.pageName ?? "Facebook Page"}</span>
+                      {looksLikeWrongPage(c) && (
+                        <span className="ml-1.5 text-amber-600" title={`This looks like a different branch's Page. If ${c.name} has its own Page, use Reconnect (or the WhatsApp link) and sign in with the account that manages it.`}>
+                          ⚠ different branch&apos;s Page?
+                        </span>
+                      )}
+                    </>
                   : <span className="text-ink-400">Not connected{c.whatsapp ? ` · ${c.ownerName ? `${c.ownerName} ` : ""}${c.whatsapp}` : ""}</span>}
               </p>
             </div>
