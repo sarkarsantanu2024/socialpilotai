@@ -7,16 +7,17 @@ import {
   weekIndex,
   topicFor,
   curatedStock,
-  POST_HOUR_UTC,
-  POST_MIN_UTC,
+  curatedStockSet,
+  normalizeAutoPostConfig,
+  istSlotTime,
 } from "@/lib/autopost/strategy";
 import { posterConfigured, renderBrandedPoster } from "@/lib/design/poster";
 import type { BusinessProfile, BusinessType } from "@/lib/types";
 
 // Auto-content planner. An external scheduler (Vercel Cron) hits this daily; for
 // every OPT-IN center with a connected Page it ensures the upcoming week's 3
-// pillar posts (Mon/Wed/Fri 8 PM IST) + any imminent festival post exist as
-// SCHEDULED drafts. The owner can review/edit/delete them in Posts → Scheduled
+// pillar posts (Mon/Wed/Sat 8 PM IST — Sat as a multi-image slideshow) + any
+// imminent festival post exist as SCHEDULED drafts. The owner can review/edit/delete them in Posts → Scheduled
 // before the publish cron sends them at the due time. Idempotent (safe to run
 // daily) and budgeted (never generates so much it times out — daily runs top up).
 export const maxDuration = 60;
@@ -77,9 +78,11 @@ export async function GET(req: Request) {
     }
     const profile = toProfile(bp);
     const type = profile.type;
+    // Per-center schedule (days/time/frequency/date-range/toggles) with defaults.
+    const cfg = normalizeAutoPostConfig(center.autoPostConfig);
 
     // ---- Weekly pillar posts ----
-    for (const slot of upcomingSlots(now)) {
+    for (const slot of upcomingSlots(now, cfg)) {
       if (generated >= MAX_GEN_PER_RUN) break;
       const { start, end } = dayBounds(slot.at);
       const exists = await prisma.post.findFirst({
@@ -97,10 +100,14 @@ export async function GET(req: Request) {
       }
       if (!variation) continue;
 
-      // Background photo → optionally composed into a branded poster (Placid).
-      const bg = curatedStock(type, weekIndex(slot.at) + slot.at.getUTCDay());
+      // Visuals. The OFFER post can go out as a multi-image SLIDESHOW
+      // (3 curated photos → a real Facebook carousel); other slots use a single
+      // photo, optionally composed into a branded poster (Placid).
+      const pick = weekIndex(slot.at) + slot.at.getUTCDay();
+      const slides = slot.carousel ? curatedStockSet(type, pick, 3) : [];
+      const bg = slides[0] ?? curatedStock(type, pick);
       let assetUrl: string | null = bg ?? null;
-      if (posterConfigured()) {
+      if (!slides.length && posterConfigured()) {
         const poster = await renderBrandedPoster({
           headline: variation.title,
           subline: [bp.name, bp.city].filter(Boolean).join(" · "),
@@ -122,6 +129,7 @@ export async function GET(req: Request) {
           caption: variation.caption,
           hashtags: variation.hashtags,
           assetUrl,
+          assetUrls: slides.length > 1 ? slides : [],
           scheduledAt: slot.at,
         },
       });
@@ -129,15 +137,18 @@ export async function GET(req: Request) {
       created.push({ tenantId: center.id, kind: `weekly:${slot.pillar}`, scheduledAt: slot.at.toISOString() });
     }
 
-    // ---- Festival post (imminent, community/brand — the natural 3rd post that
-    // week; capped at 1 so a week never exceeds ~3 posts) ----
-    for (const fest of upcomingFestivals(now, 6, 1)) {
+    // ---- Festival post (imminent, community/brand bonus post; capped at 1 and
+    // opt-out via the center's config) ----
+    for (const fest of cfg.festivals ? upcomingFestivals(now, 6, 1) : []) {
       if (generated >= MAX_GEN_PER_RUN) break;
       const d = daysUntil(fest.date, now);
       if (d < 0) continue;
-      const festAt = new Date(`${fest.date}T00:00:00Z`);
-      festAt.setUTCHours(POST_HOUR_UTC, POST_MIN_UTC, 0, 0); // 8 PM IST, same publish window
+      // Same publish time-of-day the center chose for its regular posts.
+      const [fy, fm, fd] = fest.date.split("-").map(Number);
+      const festAt = istSlotTime({ y: fy, m: fm - 1, d: fd }, cfg.time);
       if (festAt.getTime() <= now.getTime()) continue; // already past today's slot
+      if (cfg.startDate && fest.date < cfg.startDate) continue;
+      if (cfg.endDate && fest.date > cfg.endDate) continue;
       const { start, end } = dayBounds(festAt);
       const exists = await prisma.post.findFirst({
         where: { tenantId: center.id, source: "auto-festival", scheduledAt: { gte: start, lt: end } },

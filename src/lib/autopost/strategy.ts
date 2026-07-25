@@ -2,18 +2,19 @@
 // Auto-content STRATEGY. Thinks like a seasoned digital-marketing
 // strategist planning a local business's weekly content calendar:
 //
-//  • A 2-posts-per-week base rhythm built on CONTENT PILLARS that walk
+//  • A 3-posts-per-week base rhythm built on CONTENT PILLARS that walk
 //    the audience down the funnel, instead of random promo spam:
-//       Wed — EDUCATE/PROOF  (value & trust · alternates each week)
-//       Sat — OFFER          (demo/admission with a clear CTA · weekend)
-//    2–3 quality posts/week is the sweet spot for a local Page: Meta's
+//       Mon — EDUCATE        (value: start the week with a useful tip)
+//       Wed — PROOF/EDUCATE  (trust · alternates each week)
+//       Sat — OFFER          (demo/admission with a clear CTA · weekend,
+//                             published as a multi-image SLIDESHOW)
+//    3 quality posts/week is the sweet spot for a local Page: Meta's
 //    algorithm rewards CONSISTENCY, and daily posting dilutes reach. A
 //    pure "book now" every post burns the audience; this mix keeps reach
 //    healthy AND drives enquiries.
 //
-//  • When a FESTIVAL falls in the week it becomes the natural 3rd post
-//    (community/brand, not selling — the trust that makes OFFERs convert).
-//    No festival that week → 2 posts, which does NOT hurt reach.
+//  • When a FESTIVAL falls in the week it's added as a bonus community/
+//    brand post (not selling — the trust that makes OFFERs convert).
 //
 //  • Evening prime time (8:00 PM IST): parents home, kids' study hour,
 //    Indian FB engagement peaks 8–10 PM.
@@ -25,16 +26,58 @@ import type { BusinessType } from "@/lib/types";
 
 export type Pillar = "educate" | "proof" | "offer";
 
-// Base rhythm: 2 posts/week, well spaced. JS getUTCDay() → 3=Wed, 6=Sat.
-// The Wed slot alternates its pillar by week so Educate and Proof both air.
-export const WEEKLY_PLAN: { day: number; pillars: Pillar[] }[] = [
-  { day: 3, pillars: ["educate", "proof"] },
-  { day: 6, pillars: ["offer"] },
-];
+// ── Per-center schedule config (stored on Tenant.autoPostConfig as JSON). ──
+// Everything is optional; DEFAULTS give the strategist's recommended rhythm:
+// Mon/Wed/Sat at 8 PM IST, weekly, ongoing, with a weekend slideshow +
+// festival greetings.
+export interface AutoPostConfig {
+  days?: number[]; // days of week, 0=Sun … 6=Sat (IST)
+  time?: string; // "HH:mm" 24h, IST
+  frequency?: "weekly" | "fortnightly" | "monthly"; // monthly = first week of the month
+  startDate?: string; // "YYYY-MM-DD" (IST) — post only from this date (inclusive)
+  endDate?: string; // "YYYY-MM-DD" (IST) — stop after this date (inclusive)
+  slideshow?: boolean; // publish the OFFER post as a multi-image slideshow
+  festivals?: boolean; // add festival greeting posts
+}
 
-// 20:00 IST == 14:30 UTC (IST = UTC+5:30). 20:00 < 24, so no date shift.
-export const POST_HOUR_UTC = 14;
-export const POST_MIN_UTC = 30;
+export const DEFAULT_AUTOPOST: Required<AutoPostConfig> = {
+  days: [1, 3, 6],
+  time: "20:00",
+  frequency: "weekly",
+  startDate: "",
+  endDate: "",
+  slideshow: true,
+  festivals: true,
+};
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_RE = /^([01]?\d|2[0-3]):([0-5]\d)$/;
+
+// Accept whatever JSON is in the DB / request body and return a safe, complete config.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function normalizeAutoPostConfig(raw: any): Required<AutoPostConfig> {
+  const c = raw && typeof raw === "object" ? raw : {};
+  const days: number[] = Array.isArray(c.days)
+    ? Array.from(new Set<number>(c.days.map(Number).filter((d: number) => Number.isInteger(d) && d >= 0 && d <= 6))).sort()
+    : DEFAULT_AUTOPOST.days;
+  return {
+    days: days.length ? days : DEFAULT_AUTOPOST.days,
+    time: typeof c.time === "string" && TIME_RE.test(c.time) ? c.time : DEFAULT_AUTOPOST.time,
+    frequency: c.frequency === "fortnightly" || c.frequency === "monthly" ? c.frequency : "weekly",
+    startDate: typeof c.startDate === "string" && DATE_RE.test(c.startDate) ? c.startDate : "",
+    endDate: typeof c.endDate === "string" && DATE_RE.test(c.endDate) ? c.endDate : "",
+    slideshow: c.slideshow !== false,
+    festivals: c.festivals !== false,
+  };
+}
+
+const IST_OFFSET_MS = 5.5 * 3600_000;
+
+// A given IST calendar date + the config's IST wall-clock time → UTC instant.
+export function istSlotTime(istDate: { y: number; m: number; d: number }, time: string): Date {
+  const [h, min] = time.split(":").map(Number);
+  return new Date(Date.UTC(istDate.y, istDate.m, istDate.d, h, min) - IST_OFFSET_MS);
+}
 
 // Topic prompts fed to the caption AI, phrased as a brief to a copywriter. Each
 // pillar is a rotating bank; the week index selects one so topics cycle.
@@ -94,19 +137,37 @@ export function weekIndex(d: Date): number {
   return Math.floor(d.getTime() / (7 * 86_400_000));
 }
 
-// The upcoming Wed/Sat 8 PM IST slots strictly in the future, within the next
-// `withinDays`. The Wed slot's pillar alternates by week. Generating a few days
-// ahead is what gives the owner a review window before posts go live.
-export function upcomingSlots(from: Date, withinDays = 9): { at: Date; pillar: Pillar }[] {
-  const out: { at: Date; pillar: Pillar }[] = [];
+const PILLARS: Pillar[] = ["educate", "proof", "offer"];
+
+export interface Slot {
+  at: Date;
+  pillar: Pillar;
+  carousel: boolean; // publish as a multi-image slideshow
+}
+
+// The upcoming slots (strictly in the future, within `withinDays`) for a
+// center's schedule config. Pillars rotate across the selected days AND across
+// weeks so content stays varied even on a 1-day-a-week schedule. Generating a
+// few days ahead is what gives the owner a review window before posts go live.
+export function upcomingSlots(from: Date, config?: AutoPostConfig | null, withinDays = 9): Slot[] {
+  const cfg = normalizeAutoPostConfig(config);
+  const out: Slot[] = [];
+  const istFrom = new Date(from.getTime() + IST_OFFSET_MS);
   for (let i = 0; i <= withinDays; i++) {
-    const d = new Date(from.getTime() + i * 86_400_000);
-    const plan = WEEKLY_PLAN.find((p) => p.day === d.getUTCDay());
-    if (!plan) continue;
-    const at = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), POST_HOUR_UTC, POST_MIN_UTC, 0));
+    // Walk IST calendar days — day-of-week and date-range checks are IST-local.
+    const istDay = new Date(Date.UTC(istFrom.getUTCFullYear(), istFrom.getUTCMonth(), istFrom.getUTCDate() + i));
+    const pos = cfg.days.indexOf(istDay.getUTCDay());
+    if (pos === -1) continue;
+    const dateStr = istDay.toISOString().slice(0, 10);
+    if (cfg.startDate && dateStr < cfg.startDate) continue;
+    if (cfg.endDate && dateStr > cfg.endDate) continue;
+    const at = istSlotTime({ y: istDay.getUTCFullYear(), m: istDay.getUTCMonth(), d: istDay.getUTCDate() }, cfg.time);
     if (at.getTime() <= from.getTime()) continue;
-    const pillar = plan.pillars[weekIndex(at) % plan.pillars.length];
-    out.push({ at, pillar });
+    const w = weekIndex(at);
+    if (cfg.frequency === "fortnightly" && w % 2 === 1) continue;
+    if (cfg.frequency === "monthly" && istDay.getUTCDate() > 7) continue;
+    const pillar = PILLARS[(pos + w) % PILLARS.length];
+    out.push({ at, pillar, carousel: cfg.slideshow && pillar === "offer" });
   }
   return out;
 }
@@ -127,4 +188,13 @@ export function curatedStock(type: string, pick: number): string | undefined {
   if (!pool?.length) return undefined;
   const id = pool[((pick % pool.length) + pool.length) % pool.length];
   return `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=900&h=900&fit=crop`;
+}
+
+// N DISTINCT curated images starting at `pick` — the slides of an auto-generated
+// slideshow (multi-photo carousel) post. Fewer if the vertical's pool is small.
+export function curatedStockSet(type: string, pick: number, n: number): string[] {
+  const pool = STOCK[type];
+  if (!pool?.length) return [];
+  const count = Math.min(n, pool.length);
+  return Array.from({ length: count }, (_, i) => curatedStock(type, pick + i)!) ;
 }

@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { Send, Clock, FileEdit, CheckCircle2, RefreshCw, ExternalLink, Trash2, Pencil, X, Play, ImageIcon } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { fmtDateTime } from "@/lib/utils";
 import { Badge, StatusBadge } from "@/components/ui/Badge";
+import { MessageModal, type MessageTone } from "@/components/ui/MessageModal";
 import type { Post, PostStatus } from "@/lib/types";
 
 const TABS: { key: PostStatus | "all"; label: string }[] = [
@@ -43,11 +45,15 @@ function PostThumb({ post }: { post: Post }) {
   );
 }
 
-export function PostsClient({ initial }: { initial: Post[] }) {
+export function PostsClient({ initial, notConnected, centerName }: { initial: Post[]; notConnected?: boolean; centerName?: string }) {
   const [items, setItems] = useState(initial);
   const [tab, setTab] = useState<PostStatus | "all">("all");
   const [busy, setBusy] = useState<string | null>(null);
   const [editing, setEditing] = useState<Post | null>(null);
+  // Errors/notices show as a dialog, never a browser alert.
+  const [dialog, setDialog] = useState<{ title: string; body: string; tone: MessageTone } | null>(null);
+  // No Facebook Page connected → say so up-front in a dialog (dismissable).
+  const [showConnect, setShowConnect] = useState(!!notConnected);
 
   const filtered = tab === "all" ? items : items.filter((p) => p.status === tab);
 
@@ -74,10 +80,10 @@ export function PostsClient({ initial }: { initial: Post[] }) {
     const data = await res.json();
     if (!data.ok) {
       setBusy(null);
-      alert(
+      setDialog(
         data.needsConnection
-          ? "Connect your Facebook Page first: go to Settings → Connect Facebook Page, then publish."
-          : `Couldn't publish: ${data.error ?? "unknown error"}`
+          ? { title: "No Facebook Page connected", body: "Connect your Facebook Page first: go to Settings → Connect Facebook Page, then publish.", tone: "warning" }
+          : { title: "Couldn't publish", body: data.error ?? "Unknown error.", tone: "error" }
       );
       return;
     }
@@ -112,7 +118,7 @@ export function PostsClient({ initial }: { initial: Post[] }) {
       const data = await res.json();
       if (!data.ok) {
         setBusy(null);
-        alert(`Couldn't delete on Facebook: ${data.error}`);
+        setDialog({ title: "Couldn't delete on Facebook", body: data.error ?? "Unknown error.", tone: "error" });
         return;
       }
     }
@@ -236,6 +242,29 @@ export function PostsClient({ initial }: { initial: Post[] }) {
       )}
 
       {editing && <EditModal post={editing} onClose={() => setEditing(null)} onSaved={onSaved} />}
+
+      {dialog && (
+        <MessageModal title={dialog.title} tone={dialog.tone} onClose={() => setDialog(null)}>
+          {dialog.body}
+        </MessageModal>
+      )}
+
+      {showConnect && !dialog && (
+        <MessageModal
+          title={`${centerName || "This center"} isn't connected to Facebook`}
+          tone="warning"
+          onClose={() => setShowConnect(false)}
+          actions={
+            <>
+              <button onClick={() => setShowConnect(false)} className="btn-ghost text-sm">Later</button>
+              <Link href="/settings" className="btn-primary text-sm">Connect Facebook Page</Link>
+            </>
+          }
+        >
+          Posts can&apos;t be published until a Facebook Page is connected. Connect it in Settings, or ask Head Office
+          to send the WhatsApp connect link to whoever manages this branch&apos;s Page.
+        </MessageModal>
+      )}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { SettingsClient } from "./SettingsClient";
 import { AiStatus } from "@/components/ui/AiStatus";
 import { getCurrentTenant } from "@/lib/currentTenant";
 import { getCurrentUser } from "@/lib/access";
+import { normalizeAutoPostConfig } from "@/lib/autopost/strategy";
 
 export default async function SettingsPage() {
   // Settings edits the ACTIVE center. In Head-office mode (no center) an owner is
@@ -26,6 +27,7 @@ export default async function SettingsPage() {
       />
       <SettingsClient
         autoPost={tenant.autoPost}
+        autoPostConfig={normalizeAutoPostConfig(tenant.autoPostConfig)}
         plan={{
           plan: tenant.plan,
           status: tenant.planStatus,

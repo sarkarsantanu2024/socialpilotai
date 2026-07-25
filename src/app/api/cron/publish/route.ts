@@ -54,6 +54,8 @@ export async function GET(req: Request) {
         pageToken: page?.token,
         caption: `${post.caption}${post.hashtags.length ? "\n\n" + post.hashtags.join(" ") : ""}`,
         assetUrl: post.assetUrl || undefined,
+        // Multi-image slideshow → a real multi-photo (carousel) Facebook post.
+        assetUrls: post.assetUrls?.length ? post.assetUrls : undefined,
       });
       await prisma.post.update({
         where: { id: post.id },

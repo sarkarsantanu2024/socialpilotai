@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ROLE_INFO, type Role } from "@/components/layout/role";
+import { MessageModal } from "@/components/ui/MessageModal";
 import { OrgComposer } from "./OrgComposer";
 import { parseCsv, rowsToCenters, CSV_TEMPLATE } from "@/lib/csv";
 
@@ -51,6 +52,51 @@ export function OrganizationClient({ initial, initialTab }: { initial: Overview;
   async function reload() {
     const res = await fetch("/api/organization", { cache: "no-store" });
     if (res.ok) setData(await res.json());
+  }
+
+  // Pages stored by a MISMATCHED connect (none of the account's Pages looked
+  // like the center's) — the user decides in a dialog: connect anyway or cancel.
+  const [pendingConnect, setPendingConnect] = useState<{ centerName: string; pages: { id: string; name: string }[] } | null>(null);
+  const [pendingBusy, setPendingBusy] = useState(false);
+
+  // Surface the ?fb=... result of the OAuth redirect as a dialog.
+  useEffect(() => {
+    const fb = new URLSearchParams(window.location.search).get("fb");
+    if (!fb) return;
+    window.history.replaceState({}, "", "/organization");
+    if (fb === "connected") { setMsg("✅ Facebook Page connected."); reload(); }
+    else if (fb === "wrong_page") {
+      fetch("/api/fb/pending", { cache: "no-store" })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.pages?.length) setPendingConnect({ centerName: d.centerName, pages: d.pages });
+          else setMsg("The Facebook connection was not completed.");
+        })
+        .catch(() => setMsg("The Facebook connection was not completed."));
+    } else if (fb === "denied") setMsg("Facebook connection was cancelled.");
+    else if (fb === "no_pages") setMsg("No Facebook Pages found on that account.");
+    else if (fb === "token_failed") setMsg("Couldn't complete the Facebook handshake — please try again.");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function confirmPending(pageId: string) {
+    setPendingBusy(true);
+    const res = await fetch("/api/fb/pending", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pageId }),
+    }).catch(() => null);
+    setPendingBusy(false);
+    setPendingConnect(null);
+    const ok = res && (await res.json().catch(() => ({ ok: false }))).ok;
+    setMsg(ok ? "✅ Page connected to this center." : "Couldn't connect the Page — please try again.");
+    await reload();
+  }
+  async function cancelPending() {
+    setPendingBusy(true);
+    await fetch("/api/fb/pending", { method: "DELETE" }).catch(() => {});
+    setPendingBusy(false);
+    setPendingConnect(null);
+    setMsg("Nothing was connected. Use the WhatsApp link so the branch owner connects their own Page, or sign in with the account that manages it.");
+    await reload();
   }
 
   return (
@@ -106,11 +152,52 @@ export function OrganizationClient({ initial, initialTab }: { initial: Overview;
 
       {tab === "settings" && <HoSettingsCard org={data.org} setMsg={setMsg} reload={reload} />}
 
+      {/* All console messages surface as a dialog (never a transient toast). */}
       {msg && (
-        <div className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-ink-900 px-4 py-2.5 text-sm text-white shadow-pop">
-          {msg}
-          <button onClick={() => setMsg(null)} className="ml-3 text-ink-300 hover:text-white"><X className="inline h-3.5 w-3.5" /></button>
-        </div>
+        <MessageModal
+          title={/couldn['’]t|failed|error|can['’]t|invalid|not completed/i.test(msg) ? "Something went wrong" : "Notice"}
+          tone={/couldn['’]t|failed|error|can['’]t|invalid|not completed/i.test(msg) ? "error" : msg.startsWith("✅") ? "success" : "info"}
+          onClose={() => setMsg(null)}
+        >
+          {msg.replace(/^✅\s*/, "")}
+        </MessageModal>
+      )}
+
+      {/* Mismatched connect: nothing was connected — user decides explicitly. */}
+      {pendingConnect && (
+        <MessageModal
+          title="That doesn't look like this center's Page"
+          tone="warning"
+          onClose={() => { if (!pendingBusy) void cancelPending(); }}
+          actions={
+            <button onClick={cancelPending} disabled={pendingBusy} className="btn-ghost text-sm">
+              {pendingBusy ? <RefreshCw className="h-4 w-4 animate-spin" /> : "Cancel — keep it unconnected"}
+            </button>
+          }
+        >
+          <p>
+            The Facebook account you signed in with doesn&apos;t manage a Page that looks like{" "}
+            <b>{pendingConnect.centerName}</b>&apos;s. <b>Nothing has been connected</b> — this is what prevents another
+            branch&apos;s Page from being attached to this center by mistake.
+          </p>
+          <p className="mt-2">
+            Sign in with the Facebook account that manages {pendingConnect.centerName}&apos;s Page (or send the branch
+            owner the WhatsApp connect link). If one of these Pages really is the right one, connect it explicitly:
+          </p>
+          <div className="mt-2 space-y-1.5">
+            {pendingConnect.pages.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => confirmPending(p.id)}
+                disabled={pendingBusy}
+                className="btn-ghost w-full justify-between text-left text-sm"
+              >
+                <span className="truncate">{p.name}</span>
+                <span className="shrink-0 text-xs font-semibold text-brand-600">Connect anyway →</span>
+              </button>
+            ))}
+          </div>
+        </MessageModal>
       )}
     </div>
   );

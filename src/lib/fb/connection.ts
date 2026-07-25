@@ -51,11 +51,11 @@ async function tid(explicit?: string | null): Promise<string | null> {
 // comes last and is the only token that tells branches apart. Falls back to the
 // first Page. This is what stops "first page wins" from silently connecting the
 // Ramnagar Page to the Barasat center when one FB account admins many branches.
-function pickActivePage(pages: FbPageInput[], centerName: string): number {
+export function bestPageMatch(pages: FbPageInput[], centerName: string): { index: number; score: number } {
   const tokenize = (s: string) =>
     s.toLowerCase().replace(/[!-/:-@[-`{-~]/g, " ").split(/\s+/).filter(Boolean);
   const target = tokenize(centerName);
-  if (pages.length < 2 || !target.length) return 0;
+  if (!pages.length || !target.length) return { index: 0, score: 0 };
   const locationToken = target[target.length - 1];
   let best = 0;
   let bestScore = 0;
@@ -65,17 +65,34 @@ function pickActivePage(pages: FbPageInput[], centerName: string): number {
     if (words.has(locationToken)) score += 3;
     if (score > bestScore) { bestScore = score; best = i; }
   });
-  return best;
+  return { index: best, score: bestScore };
+}
+
+function pickActivePage(pages: FbPageInput[], centerName: string): number {
+  return pages.length < 2 ? 0 : bestPageMatch(pages, centerName).index;
+}
+
+/** The center's display name, for matching Pages against it. */
+export async function centerDisplayName(tenantId: string): Promise<string> {
+  const profile = await prisma.businessProfile.findUnique({ where: { tenantId } });
+  if (profile?.name) return profile.name;
+  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+  return tenant?.name ?? "";
 }
 
 /**
  * Replace this center's connection with a fresh set from OAuth. The Page whose
  * name best matches the center becomes the active one (first Page as fallback).
  * Idempotent per center.
+ *
+ * `pending: true` stores the Pages WITHOUT connecting them (connected=false,
+ * nothing active) — used when none of the OAuth'd Pages looks like this
+ * center's Page, so the user must explicitly confirm before anything publishes.
  */
 export async function persistConnection(
   tenantId: string,
-  conn: { userName?: string; userToken?: string; adAccountId?: string; pages: FbPageInput[] }
+  conn: { userName?: string; userToken?: string; adAccountId?: string; pages: FbPageInput[] },
+  opts?: { pending?: boolean }
 ) {
   await prisma.fbConnection.upsert({
     where: { tenantId },
@@ -94,9 +111,8 @@ export async function persistConnection(
 
   await prisma.connectedPage.deleteMany({ where: { tenantId } });
   if (conn.pages.length) {
-    const profile = await prisma.businessProfile.findUnique({ where: { tenantId } });
-    const tenant = profile ? null : await prisma.tenant.findUnique({ where: { id: tenantId } });
-    const activeIdx = pickActivePage(conn.pages, profile?.name ?? tenant?.name ?? "");
+    const pending = !!opts?.pending;
+    const activeIdx = pending ? -1 : pickActivePage(conn.pages, await centerDisplayName(tenantId));
     await prisma.connectedPage.createMany({
       data: conn.pages.map((p, i) => ({
         tenantId,
@@ -108,7 +124,7 @@ export async function persistConnection(
         igUserId: p.igUserId ?? null,
         igUsername: p.igUsername ?? null,
         pageToken: encrypt(p.token),
-        connected: true,
+        connected: !pending,
         isActive: i === activeIdx,
       })),
     });
@@ -158,6 +174,33 @@ export async function setActivePage(tenantId: string, pageId: string): Promise<b
     prisma.connectedPage.updateMany({ where: { tenantId, pageId }, data: { isActive: true } }),
   ]);
   return true;
+}
+
+/** Pages stored by a mismatched connect, awaiting the user's explicit decision. */
+export async function pendingPages(tenantId?: string | null) {
+  const id = await tid(tenantId);
+  if (!id) return [];
+  const rows = await prisma.connectedPage.findMany({ where: { tenantId: id, connected: false } });
+  return rows.map((r) => ({ id: r.pageId, name: r.name, category: r.category, picture: r.picture }));
+}
+
+/** User confirmed "connect anyway": activate the pending pages, chosen one active. */
+export async function activatePending(tenantId: string, pageId?: string): Promise<boolean> {
+  const rows = await prisma.connectedPage.findMany({ where: { tenantId, connected: false } });
+  if (!rows.length) return false;
+  const chosen = rows.find((r) => r.pageId === pageId) ?? rows[0];
+  await prisma.$transaction([
+    prisma.connectedPage.updateMany({ where: { tenantId }, data: { connected: true, isActive: false } }),
+    prisma.connectedPage.updateMany({ where: { tenantId, pageId: chosen.pageId }, data: { isActive: true } }),
+  ]);
+  return true;
+}
+
+/** User declined the mismatched connect: drop the pending pages (+ meta if orphaned). */
+export async function discardPending(tenantId: string) {
+  await prisma.connectedPage.deleteMany({ where: { tenantId, connected: false } });
+  const remaining = await prisma.connectedPage.count({ where: { tenantId } });
+  if (!remaining) await prisma.fbConnection.deleteMany({ where: { tenantId } });
 }
 
 /** Fully disconnect this center's Facebook (removes pages + connection meta). */
