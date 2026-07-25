@@ -166,7 +166,11 @@ export function PostsClient({ initial }: { initial: Post[] }) {
 
             <div className="p-4">
               <p className="font-semibold leading-snug">{p.title}</p>
-              <p className="mt-1 line-clamp-2 text-sm text-ink-500">{p.caption}</p>
+              {/* The title is often the caption's first line — don't print it twice. */}
+              {(() => {
+                const rest = p.caption.startsWith(p.title) ? p.caption.slice(p.title.length).trim() : p.caption;
+                return rest ? <p className="mt-1 line-clamp-2 text-sm text-ink-500">{rest}</p> : null;
+              })()}
 
               <p className="mt-2.5 text-xs text-ink-400">
                 {p.status === "scheduled" && p.scheduledAt && (

@@ -26,6 +26,19 @@ export async function POST(req: Request) {
     );
   }
 
+  // Video/reel posts must go through /api/publish/video (chunked clip upload).
+  // Publishing them here would silently produce a caption-only TEXT post on the
+  // Page — the exact bug this guard exists to prevent.
+  if (body.type === "reel" || body.type === "video") {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "This is a video post — open AI Content Studio, attach the clip and publish from there. (Caption-only fallback is disabled so your Page never gets a video post without the video.)",
+      },
+      { status: 400 }
+    );
+  }
+
   // Free trial ended → must upgrade to keep publishing (viewing stays open).
   if (tenant && (await trialExpiredForCenter(tenant.id))) {
     return NextResponse.json(

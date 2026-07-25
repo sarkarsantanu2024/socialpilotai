@@ -44,9 +44,12 @@ export function OrgComposer({ centers, setMsg }: { centers: Center[]; setMsg: (m
   const [hashtags, setHashtags] = useState("");
   const [images, setImages] = useState<string[]>([]); // AI / stock generated
   // Own creative the HO uploads, broadcast to every branch. Images: one or more
-  // data-URLs (a carousel takes one per slide). Video/reel: a single clip.
+  // data-URLs (a carousel takes one per slide). Video/reel: the actual File
+  // (chunk-uploaded to each branch Page on send) + an object URL for preview.
   const [imgs, setImgs] = useState<string[]>([]);
-  const [clip, setClip] = useState<{ name: string } | null>(null);
+  const [clip, setClip] = useState<{ name: string; file: File; url: string } | null>(null);
+  // Per-branch upload progress while a video broadcast is running.
+  const [vidProgress, setVidProgress] = useState<{ center: string; pct: number } | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [aiImg, setAiImg] = useState<{ busy: boolean; msg: string | null; upgrade: boolean }>({ busy: false, msg: null, upgrade: false });
   const fileRef = useRef<HTMLInputElement>(null);
@@ -113,7 +116,10 @@ export function OrgComposer({ centers, setMsg }: { centers: Center[]; setMsg: (m
     if (!list.length) return;
     if (isVideo) {
       const f = list.find((x) => x.type.startsWith("video/")) ?? list[0];
-      setClip({ name: f.name });
+      setClip((prev) => {
+        if (prev) URL.revokeObjectURL(prev.url);
+        return { name: f.name, file: f, url: URL.createObjectURL(f) };
+      });
       return;
     }
     const chosen = list.filter((f) => f.type.startsWith("image/"));
@@ -208,15 +214,86 @@ export function OrgComposer({ centers, setMsg }: { centers: Center[]; setMsg: (m
   }
 
   const primaryImage: string | undefined = fmt.kind === "image" ? slideImage(0) : undefined;
-  const canSend = caption.trim().length > 0 && targetCenters.length > 0 && !busy && !sent;
+  const canSend = caption.trim().length > 0 && targetCenters.length > 0 && !busy && !sent && (!isVideo || !!clip);
+
+  const parseTags = (s: string) =>
+    s.split(/[\s,]+/).map((t) => t.trim()).filter(Boolean).map((t) => (t.startsWith("#") ? t : `#${t}`));
+  // Same {center}/{city} tokens the server-side push localizes.
+  const localize = (text: string, c: Center) =>
+    text.replace(/\{center\}/gi, c.name).replace(/\{city\}/gi, c.city || "your city");
+
+  // Video/reel broadcast: the clip is chunk-uploaded to EACH selected branch's
+  // Page in turn (Facebook has no shared upload across Pages). Sequential on
+  // purpose — one progress line, no token/rate contention.
+  async function submitVideo(scheduledAt?: string) {
+    if (!clip) { setMsg("Attach the video clip first."); return; }
+    setBusy(true);
+    setResults(null);
+    const rows: CenterResult[] = [];
+    const CHUNK = 3 * 1024 * 1024; // < serverless 4.5MB request-body limit
+    for (const c of targetCenters) {
+      if (!c.connected) {
+        rows.push({ centerId: c.id, name: c.name, status: "skipped", reason: "No Facebook Page connected" });
+        continue;
+      }
+      const ov = overrides[c.id];
+      const baseCaption = ov?.caption?.trim() ? ov.caption : caption;
+      const tags = ov?.hashtags?.trim() ? parseTags(ov.hashtags) : parseTags(hashtags);
+      const fbCaption = `${localize(baseCaption, c)}${tags.length ? "\n\n" + tags.join(" ") : ""}`;
+      try {
+        setVidProgress({ center: c.name, pct: 0 });
+        const startRes = await fetch("/api/publish/video", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "start", fileSize: clip.file.size, centerId: c.id }),
+        });
+        const start = await startRes.json();
+        if (!start.ok) throw new Error(start.error ?? "Couldn't start the upload.");
+        let offset: number = start.startOffset ?? 0;
+        while (offset < clip.file.size) {
+          const fd = new FormData();
+          fd.set("centerId", c.id);
+          fd.set("sessionId", start.sessionId);
+          fd.set("startOffset", String(offset));
+          fd.set("chunk", clip.file.slice(offset, Math.min(offset + CHUNK, clip.file.size)));
+          const res = await fetch("/api/publish/video", { method: "POST", body: fd });
+          const data = await res.json();
+          if (!data.ok) throw new Error(data.error ?? "Upload failed part-way.");
+          offset = Number(data.startOffset) > offset ? Number(data.startOffset) : offset + CHUNK;
+          setVidProgress({ center: c.name, pct: Math.min(99, Math.round((Math.min(offset, clip.file.size) / clip.file.size) * 100)) });
+        }
+        const finRes = await fetch("/api/publish/video", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "finish", centerId: c.id, sessionId: start.sessionId, videoId: start.videoId,
+            caption: fbCaption, title: localize(result?.title ?? caption.split("\n")[0] ?? "Video", c).slice(0, 80),
+            type: fmt.postType, hashtags: tags, scheduledAt, source: "ho-publish",
+          }),
+        });
+        const fin = await finRes.json();
+        if (!fin.ok) throw new Error(fin.error ?? "Facebook couldn't finish the upload.");
+        rows.push({ centerId: c.id, name: c.name, status: scheduledAt ? "scheduled" : "published", permalink: fin.permalink, pageName: fin.pageName });
+      } catch (e) {
+        rows.push({ centerId: c.id, name: c.name, status: "failed", reason: (e as Error).message });
+      }
+    }
+    setVidProgress(null);
+    setResults(rows);
+    setSent(true);
+    const okCount = rows.filter((r) => r.status === "published" || r.status === "scheduled").length;
+    const skipped = rows.filter((r) => r.status === "skipped").length;
+    const failedCount = rows.filter((r) => r.status === "failed").length;
+    const verb = scheduledAt ? "Scheduled" : "Published";
+    setMsg(`${verb} video to ${okCount} center${okCount === 1 ? "" : "s"}${skipped ? ` · ${skipped} skipped (no Page)` : ""}${failedCount ? ` · ${failedCount} failed` : ""}.`);
+    setBusy(false);
+  }
 
   async function submit() {
     if (!caption.trim()) { setMsg("Write or generate some content first."); return; }
     if (!targetCenters.length) { setMsg("Pick at least one center."); return; }
     if (mode === "schedule" && !when) { setMsg("Pick a date & time to schedule."); return; }
 
-    const parseTags = (s: string) =>
-      s.split(/[\s,]+/).map((t) => t.trim()).filter(Boolean).map((t) => (t.startsWith("#") ? t : `#${t}`));
+    if (isVideo) return submitVideo(mode === "schedule" && when ? new Date(when).toISOString() : undefined);
+
     const tagList = parseTags(hashtags);
     const centerIds = target === "some" ? picked : undefined;
     const allImages = slideImages();
@@ -324,7 +401,7 @@ export function OrgComposer({ centers, setMsg }: { centers: Center[]; setMsg: (m
                 <p className="truncate text-sm font-medium">{clip.name}</p>
                 <p className="text-[11px] text-ink-400">Your clip</p>
               </div>
-              <button onClick={() => setClip(null)} className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-ink-400 hover:bg-ink-100 hover:text-ink-700" aria-label="Remove clip">
+              <button onClick={() => setClip((prev) => { if (prev) URL.revokeObjectURL(prev.url); return null; })} className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-ink-400 hover:bg-ink-100 hover:text-ink-700" aria-label="Remove clip">
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -409,37 +486,64 @@ export function OrgComposer({ centers, setMsg }: { centers: Center[]; setMsg: (m
         {/* Preview */}
         <div className="card p-4">
           <p className="mb-2 text-xs font-semibold text-ink-500">PREVIEW</p>
-          <div className="mx-auto w-full max-w-[300px]">
-            <div className="relative flex aspect-square flex-col justify-between overflow-hidden rounded-2xl p-4 text-white"
-              style={{ background: `linear-gradient(135deg, ${kit.primary}, ${kit.secondary})` }}>
-              {primaryImage && (
-                <>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={primaryImage} alt="" className="absolute inset-0 h-full w-full object-cover" />
-                  <span className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/20" />
-                </>
+          {/* Exactly ONE preview at a time: the clip player for video formats
+              (or its upload prompt), the branded image mock-up for image formats. */}
+          {isVideo ? (
+            <div className="mx-auto w-full" style={{ maxWidth: format === "reel" ? 220 : 300 }}>
+              {clip ? (
+                <video
+                  src={clip.url}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  className="w-full rounded-2xl bg-ink-900 object-contain"
+                  style={{ aspectRatio: format === "reel" ? "9 / 16" : "16 / 9" }}
+                />
+              ) : (
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  className="flex w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-ink-300 bg-ink-50 p-6 text-center transition hover:border-brand-300 hover:bg-brand-50"
+                  style={{ aspectRatio: format === "reel" ? "9 / 16" : "16 / 9" }}
+                >
+                  <Upload className="h-7 w-7 text-ink-400" />
+                  <p className="text-sm font-medium">Upload your clip</p>
+                  <p className="text-xs text-ink-400">It gets uploaded to each selected branch&apos;s Page.</p>
+                </button>
               )}
-              <div className="relative">
-                {kit.logo ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={kit.logo} alt="" className="h-8 w-fit max-w-[45%] rounded-md bg-white/20 object-contain p-1 backdrop-blur-sm" />
-                ) : (
-                  <span className="rounded-md bg-white/20 px-2 py-0.5 text-[11px] font-bold backdrop-blur-sm">{kit.logoText}</span>
+            </div>
+          ) : (
+            <div className="mx-auto w-full max-w-[300px]">
+              <div className="relative flex aspect-square flex-col justify-between overflow-hidden rounded-2xl p-4 text-white"
+                style={{ background: `linear-gradient(135deg, ${kit.primary}, ${kit.secondary})` }}>
+                {primaryImage && (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={primaryImage} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                    <span className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/20" />
+                  </>
                 )}
-              </div>
-              <div className="relative">
-                {result?.title && !primaryImage && <p className="text-lg font-extrabold leading-tight drop-shadow-sm">{result.title}</p>}
-                {result?.cta && !primaryImage && <span className="mt-2 inline-block rounded-md px-2.5 py-1 text-xs font-bold text-ink-900" style={{ background: kit.accent }}>{result.cta}</span>}
+                <div className="relative">
+                  {kit.logo ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={kit.logo} alt="" className="h-8 w-fit max-w-[45%] rounded-md bg-white/20 object-contain p-1 backdrop-blur-sm" />
+                  ) : (
+                    <span className="rounded-md bg-white/20 px-2 py-0.5 text-[11px] font-bold backdrop-blur-sm">{kit.logoText}</span>
+                  )}
+                </div>
+                <div className="relative">
+                  {result?.title && !primaryImage && <p className="text-lg font-extrabold leading-tight drop-shadow-sm">{result.title}</p>}
+                  {result?.cta && !primaryImage && <span className="mt-2 inline-block rounded-md px-2.5 py-1 text-xs font-bold text-ink-900" style={{ background: kit.accent }}>{result.cta}</span>}
+                </div>
               </div>
             </div>
-          </div>
+          )}
           {fmt.kind === "image" && imgs.length > 0 && (
             <p className="mt-2 text-center text-[11px] text-ink-400">
               {maxImgs > 1 ? `Using your ${imgs.length} image${imgs.length === 1 ? "" : "s"} · slide 1 shown` : "Using your image"}
             </p>
           )}
           {isVideo && clip && (
-            <p className="mt-2 truncate text-center text-[11px] text-ink-400">🎬 {clip.name}</p>
+            <p className="mt-2 truncate text-center text-[11px] text-ink-400">🎬 {clip.name} — uploaded to each selected branch&apos;s Page</p>
           )}
         </div>
 
@@ -534,8 +638,17 @@ export function OrgComposer({ centers, setMsg }: { centers: Center[]; setMsg: (m
             </p>
           )}
 
+          {isVideo && !clip && (
+            <p className="flex items-start gap-1.5 rounded-lg bg-amber-50 px-2.5 py-2 text-[11px] text-amber-700">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              Attach the {fmt.label.toLowerCase()} clip first — it gets uploaded to each selected branch&apos;s Page.
+            </p>
+          )}
+
           <button onClick={submit} disabled={!canSend} className="btn-primary w-full disabled:opacity-60">
-            {busy ? <><RefreshCw className="h-4 w-4 animate-spin" /> Working…</> : sent ? (
+            {busy && vidProgress ? (
+              <><RefreshCw className="h-4 w-4 animate-spin" /> Uploading to {vidProgress.center}… {vidProgress.pct}%</>
+            ) : busy ? <><RefreshCw className="h-4 w-4 animate-spin" /> Working…</> : sent ? (
               <><Check className="h-4 w-4" /> {mode === "schedule" ? "Scheduled" : "Published"} — edit to send again</>
             ) : (
               <>

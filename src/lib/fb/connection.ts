@@ -45,9 +45,33 @@ async function tid(explicit?: string | null): Promise<string | null> {
   return explicit ?? getSessionTenantId();
 }
 
+// Which of the OAuth'd Pages should be ACTIVE for this center? Prefer the Page
+// whose name matches the center's name, with extra weight on the center's LAST
+// name token — in franchise naming ("MMA Barasat", "MMA Ramnagar") the location
+// comes last and is the only token that tells branches apart. Falls back to the
+// first Page. This is what stops "first page wins" from silently connecting the
+// Ramnagar Page to the Barasat center when one FB account admins many branches.
+function pickActivePage(pages: FbPageInput[], centerName: string): number {
+  const tokenize = (s: string) =>
+    s.toLowerCase().replace(/[!-/:-@[-`{-~]/g, " ").split(/\s+/).filter(Boolean);
+  const target = tokenize(centerName);
+  if (pages.length < 2 || !target.length) return 0;
+  const locationToken = target[target.length - 1];
+  let best = 0;
+  let bestScore = 0;
+  pages.forEach((p, i) => {
+    const words = new Set(tokenize(p.name));
+    let score = target.reduce((n, w) => n + (words.has(w) ? 1 : 0), 0);
+    if (words.has(locationToken)) score += 3;
+    if (score > bestScore) { bestScore = score; best = i; }
+  });
+  return best;
+}
+
 /**
- * Replace this center's connection with a fresh set from OAuth. The first page
- * becomes the active one. Idempotent per center.
+ * Replace this center's connection with a fresh set from OAuth. The Page whose
+ * name best matches the center becomes the active one (first Page as fallback).
+ * Idempotent per center.
  */
 export async function persistConnection(
   tenantId: string,
@@ -70,6 +94,9 @@ export async function persistConnection(
 
   await prisma.connectedPage.deleteMany({ where: { tenantId } });
   if (conn.pages.length) {
+    const profile = await prisma.businessProfile.findUnique({ where: { tenantId } });
+    const tenant = profile ? null : await prisma.tenant.findUnique({ where: { id: tenantId } });
+    const activeIdx = pickActivePage(conn.pages, profile?.name ?? tenant?.name ?? "");
     await prisma.connectedPage.createMany({
       data: conn.pages.map((p, i) => ({
         tenantId,
@@ -82,7 +109,7 @@ export async function persistConnection(
         igUsername: p.igUsername ?? null,
         pageToken: encrypt(p.token),
         connected: true,
-        isActive: i === 0,
+        isActive: i === activeIdx,
       })),
     });
   }

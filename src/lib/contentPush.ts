@@ -59,6 +59,13 @@ export async function publishToCenters(
   if (!input.caption.trim()) throw new Error("Write some content first.");
   if (await trialExpiredForOrg(orgId)) throw new Error("Your free trial has ended. Upgrade to keep publishing.");
 
+  // Video/reel broadcasts don't come through here — the HO composer chunk-uploads
+  // the clip per branch via /api/publish/video. Refuse loudly rather than silently
+  // publishing a caption-only TEXT post to every branch's Page.
+  if (input.type === "reel" || input.type === "video") {
+    throw new Error("Video/reel posts upload their clip per branch — use the Publish tab's composer (attach the clip and send), not this endpoint.");
+  }
+
   const where = input.centerIds?.length
     ? { organizationId: orgId, id: { in: input.centerIds } }
     : { organizationId: orgId };
