@@ -76,7 +76,7 @@ export function toBrand(tenant: TenantWithBrand): {
 // ── Map DB rows → domain types ──────────────────────────────────
 function mapPost(p: {
   id: string; type: string; status: string; title: string; caption: string;
-  hashtags: string[]; music: string | null; assetUrl: string | null;
+  hashtags: string[]; music: string | null; assetUrl: string | null; assetUrls?: string[];
   scheduledAt: Date | null; publishedAt: Date | null; fbPostId: string | null; source: string;
 }): Post {
   return {
@@ -88,6 +88,7 @@ function mapPost(p: {
     hashtags: p.hashtags,
     music: p.music ?? undefined,
     assetUrl: p.assetUrl ?? "",
+    assetUrls: p.assetUrls ?? [],
     scheduledAt: p.scheduledAt?.toISOString(),
     publishedAt: p.publishedAt?.toISOString(),
     fbPostId: p.fbPostId ?? undefined,

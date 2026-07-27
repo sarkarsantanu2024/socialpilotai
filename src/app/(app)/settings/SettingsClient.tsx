@@ -35,6 +35,7 @@ export interface AutoPostConfigUI {
   endDate: string;
   slideshow: boolean;
   festivals: boolean;
+  reelSlot: boolean;
 }
 
 export function SettingsClient({ plan, details, autoPost, autoPostConfig }: { plan: PlanInfo; details: CenterDetails; autoPost: boolean; autoPostConfig: AutoPostConfigUI }) {
@@ -397,6 +398,13 @@ function AutoPostCard({ initial, initialConfig }: { initial: boolean; initialCon
         <label className="flex items-center gap-2 text-sm text-ink-600">
           <input type="checkbox" checked={cfg.festivals} onChange={(e) => patch({ festivals: e.target.checked })} />
           Add festival greeting posts
+        </label>
+        <label className="flex items-start gap-2 text-sm text-ink-600">
+          <input type="checkbox" className="mt-0.5" checked={cfg.reelSlot} onChange={(e) => patch({ reelSlot: e.target.checked })} />
+          <span>
+            Leave a weekly <b>reel slot</b> — a ready-made draft (caption, hashtags &amp; music written for you); just
+            attach your own clip in Posts → Edit and publish
+          </span>
         </label>
 
         {dirty && (

@@ -54,7 +54,7 @@ const SPECS: Record<BusinessType, Spec> = {
   abacus: {
     category: "Education",
     followers: 4820,
-    images: [8613095, 31864404, 1019470, 8612925, 6692923],
+    images: [8613095, 31864404, 8613089, 8612925, 6692923],
     posts: [
       { t: "Speed Maths Workshop — Free Demo", c: "🧮 Watch your child multiply faster than a calculator! Free abacus demo this Saturday at {brand}, {city}. Ages 5–14. Limited seats!", h: ["#Abacus", "#MentalMaths", "#FreeDemo", "#KidsLearning"], type: "image", status: "published", date: "2026-05-22T09:30:00+05:30" },
       { t: "50 sums in 2 minutes ⚡", c: "🔥 Our Level-5 student just solved 50 sums in under 2 minutes! Abacus builds focus, speed & confidence. Save & share 🔖", h: ["#Abacus", "#BrainTraining", "#SpeedMaths", "#ProudMoment"], type: "reel", status: "published", music: "Upbeat — 'Rise Up' (royalty-free)", date: "2026-05-27T18:00:00+05:30" },
