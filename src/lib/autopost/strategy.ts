@@ -38,6 +38,7 @@ export interface AutoPostConfig {
   endDate?: string; // "YYYY-MM-DD" (IST) — stop after this date (inclusive)
   slideshow?: boolean; // publish the OFFER post as a multi-image slideshow
   festivals?: boolean; // add festival greeting posts
+  reelSlot?: boolean; // leave a weekly REEL PLACEHOLDER draft (caption ready, owner adds the clip)
 }
 
 export const DEFAULT_AUTOPOST: Required<AutoPostConfig> = {
@@ -48,6 +49,7 @@ export const DEFAULT_AUTOPOST: Required<AutoPostConfig> = {
   endDate: "",
   slideshow: true,
   festivals: true,
+  reelSlot: true,
 };
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -68,6 +70,7 @@ export function normalizeAutoPostConfig(raw: any): Required<AutoPostConfig> {
     endDate: typeof c.endDate === "string" && DATE_RE.test(c.endDate) ? c.endDate : "",
     slideshow: c.slideshow !== false,
     festivals: c.festivals !== false,
+    reelSlot: c.reelSlot !== false,
   };
 }
 
@@ -172,10 +175,38 @@ export function upcomingSlots(from: Date, config?: AutoPostConfig | null, within
   return out;
 }
 
+// The weekly REEL-SLOT suggestion: video can't be auto-generated, so the planner
+// leaves a placeholder DRAFT (caption/hashtags/music ready) on a day the regular
+// schedule doesn't use — the owner attaches a real clip and publishes. Prefers
+// Friday, then falls through to any day not already taken by cfg.days.
+const REEL_DAY_PREFERENCE = [5, 0, 2, 4, 1, 6, 3];
+
+export function upcomingReelSlots(from: Date, config?: AutoPostConfig | null, withinDays = 9): Date[] {
+  const cfg = normalizeAutoPostConfig(config);
+  if (!cfg.reelSlot) return [];
+  const day = REEL_DAY_PREFERENCE.find((d) => !cfg.days.includes(d)) ?? 5;
+  const out: Date[] = [];
+  const istFrom = new Date(from.getTime() + 5.5 * 3600_000);
+  for (let i = 0; i <= withinDays; i++) {
+    const istDay = new Date(Date.UTC(istFrom.getUTCFullYear(), istFrom.getUTCMonth(), istFrom.getUTCDate() + i));
+    if (istDay.getUTCDay() !== day) continue;
+    const dateStr = istDay.toISOString().slice(0, 10);
+    if (cfg.startDate && dateStr < cfg.startDate) continue;
+    if (cfg.endDate && dateStr > cfg.endDate) continue;
+    const at = istSlotTime({ y: istDay.getUTCFullYear(), m: istDay.getUTCMonth(), d: istDay.getUTCDate() }, cfg.time);
+    if (at.getTime() <= from.getTime()) continue;
+    const w = weekIndex(at);
+    if (cfg.frequency === "fortnightly" && w % 2 === 1) continue;
+    if (cfg.frequency === "monthly" && istDay.getUTCDate() > 7) continue;
+    out.push(at);
+  }
+  return out;
+}
+
 // Curated, India-relevant stock photo per vertical (public Pexels CDN, no key).
 // Mirrors the pool used by /api/image so auto-posts look consistent with manual ones.
 const STOCK: Record<string, number[]> = {
-  abacus: [8613095, 31864404, 1019470, 8612925, 6692923, 7188764],
+  abacus: [8613095, 31864404, 8613089, 8612925, 6692923, 7188764],
   coaching: [35745592, 35745581, 18870256, 35745583, 8617762, 8618062],
   playschool: [4047662, 8612877, 30279471, 17332827, 29279438],
   gym: [5221029, 11661410, 10795063, 13534122, 11439928],

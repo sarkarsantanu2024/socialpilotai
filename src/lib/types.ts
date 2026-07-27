@@ -79,6 +79,7 @@ export interface Post {
   hashtags: string[];
   music?: string;
   assetUrl: string;
+  assetUrls?: string[]; // extra slides of a multi-image (slideshow/carousel) post
   scheduledAt?: string; // ISO
   publishedAt?: string; // ISO
   fbPostId?: string;

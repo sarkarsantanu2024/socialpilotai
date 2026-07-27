@@ -4,6 +4,7 @@ import { generateVariations, generateFestivalPost } from "@/lib/ai";
 import { upcomingFestivals, daysUntil } from "@/lib/festivals";
 import {
   upcomingSlots,
+  upcomingReelSlots,
   weekIndex,
   topicFor,
   curatedStock,
@@ -135,6 +136,47 @@ export async function GET(req: Request) {
       });
       generated++;
       created.push({ tenantId: center.id, kind: `weekly:${slot.pillar}`, scheduledAt: slot.at.toISOString() });
+    }
+
+    // ---- Weekly REEL SLOT (placeholder draft) ----
+    // Video can't be auto-generated, so instead of skipping reels entirely the
+    // planner leaves a DRAFT with the caption/hashtags/music already written —
+    // the owner attaches a real clip in Posts → Edit and publishes. Never
+    // auto-publishes: it stays a draft until a human adds the video.
+    for (const reelAt of upcomingReelSlots(now, cfg)) {
+      if (generated >= MAX_GEN_PER_RUN) break;
+      const { start, end } = dayBounds(reelAt);
+      const exists = await prisma.post.findFirst({
+        where: { tenantId: center.id, source: "auto-reel", scheduledAt: { gte: start, lt: end } },
+        select: { id: true },
+      });
+      if (exists) continue;
+
+      const topic = `${topicFor(type, "proof", weekIndex(reelAt))} — written as the caption of a short vertical video (reel)`;
+      let v;
+      try {
+        [v] = await generateVariations({ prompt: topic, type: "reel", profile });
+      } catch {
+        continue;
+      }
+      if (!v) continue;
+
+      await prisma.post.create({
+        data: {
+          tenantId: center.id,
+          type: "reel",
+          status: "draft", // a human must attach the clip — cron never publishes this
+          approvalStatus: "approved",
+          source: "auto-reel",
+          title: `🎬 ${v.title}`.slice(0, 80),
+          caption: v.caption,
+          hashtags: v.hashtags,
+          music: v.music && v.music !== "—" ? v.music : null,
+          scheduledAt: reelAt, // the suggested slot (shown as a hint; draft until completed)
+        },
+      });
+      generated++;
+      created.push({ tenantId: center.id, kind: "reel-slot", scheduledAt: reelAt.toISOString() });
     }
 
     // ---- Festival post (imminent, community/brand bonus post; capped at 1 and

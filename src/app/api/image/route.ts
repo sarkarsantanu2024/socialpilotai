@@ -8,7 +8,7 @@ import { NextResponse } from "next/server";
 //   3. LoremFlickr keyword stock — last-resort free fallback.
 // Verified Pexels photo IDs (alt text confirms Indian / on-topic subjects).
 const CURATED: Record<string, number[]> = {
-  abacus: [8613095, 31864404, 1019470, 8612925, 6692923, 7188764],
+  abacus: [8613095, 31864404, 8613089, 8612925, 6692923, 7188764],
   coaching: [35745592, 35745581, 18870256, 35745583, 8617762, 8618062],
   playschool: [4047662, 8612877, 30279471, 17332827, 29279438],
   gym: [5221029, 11661410, 10795063, 13534122, 11439928],

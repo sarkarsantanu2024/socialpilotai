@@ -5,7 +5,7 @@
 // no-centers landing instead of looping back to /login.
 import "server-only";
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/db";
+import { prisma, withDbRetry } from "@/lib/db";
 import { getCurrentUser, resolveActiveCenterId } from "@/lib/access";
 
 export type TenantWithBrand = NonNullable<Awaited<ReturnType<typeof getCurrentTenant>>>;
@@ -15,10 +15,13 @@ export async function getCurrentTenant() {
   if (!user) return null;
   const centerId = await resolveActiveCenterId(user);
   if (!centerId) return null;
-  return prisma.tenant.findUnique({
-    where: { id: centerId },
-    include: { businessProfile: true, brandKit: true },
-  });
+  // This runs on every page load — ride out Neon cold-starts like getCurrentUser does.
+  return withDbRetry(() =>
+    prisma.tenant.findUnique({
+      where: { id: centerId },
+      include: { businessProfile: true, brandKit: true },
+    })
+  );
 }
 
 export async function requireTenant() {
