@@ -34,8 +34,13 @@ const CORE_SCOPES = [
   "pages_show_list", "pages_manage_posts", "pages_read_engagement",
   // business_management lets /me/accounts enumerate Pages owned by a Business
   // Portfolio (not just personally-owned Pages), so branch Pages held in a
-  // client's Business Manager show up in the connect list. Needs App Review too.
-  "business_management",
+  // client's Business Manager show up in the connect list. REMOVED from the
+  // Aug 2026 resubmission: Meta rejected all four scopes for an incomplete
+  // screencast, and this one needs its own distinct on-screen proof (a
+  // Business-owned Page appearing in the list). Ship the three Page scopes
+  // first, then request it in a separate round. Until then only Pages the
+  // connecting user owns personally are listed.
+  // "business_management",
   // IG scopes disabled until the Instagram product is added to the Meta app and
   // approved in App Review. Re-enable these two together with Option A setup.
   // "instagram_basic", "instagram_content_publish",
