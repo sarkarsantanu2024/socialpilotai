@@ -21,7 +21,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           </span>
         </Link>
         <div className="flex flex-1 items-center justify-center">
-          <div className="w-full max-w-sm animate-fade-up py-8">{children}</div>
+          <div className="w-full max-w-md animate-fade-up py-8">{children}</div>
         </div>
         <p className="text-center text-xs text-ink-400">
           © {new Date().getFullYear()} SocialPilot AI · Facebook marketing on autopilot

@@ -52,19 +52,19 @@ function SignupForm() {
 
   return (
     <>
-      <h1 className="text-2xl font-bold tracking-tight">Create your account</h1>
-      <p className="mt-1 text-sm text-ink-500">
+      <h1 className="text-3xl font-bold tracking-tight">Create your account</h1>
+      <p className="mt-1.5 text-base text-ink-500">
         Start running your page on autopilot in minutes.
       </p>
 
       {chosenPlan && (
-        <p className="mt-4 flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
-          <BadgeCheck className="h-4 w-4 shrink-0" /> Selected plan: {chosenPlan} · 14-day free trial first, no card required
+        <p className="mt-4 flex items-center gap-2 rounded-lg bg-emerald-50 px-3.5 py-2.5 text-[15px] font-medium text-emerald-700">
+          <BadgeCheck className="h-5 w-5 shrink-0" /> Selected plan: {chosenPlan} · 14-day free trial first, no card required
         </p>
       )}
 
-      <div className="mt-4 flex items-start gap-2 rounded-xl border border-brand-100 bg-brand-50/60 p-3 text-xs text-ink-600">
-        <Crown className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+      <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-brand-100 bg-brand-50/60 p-3.5 text-sm text-ink-600">
+        <Crown className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
         <span>
           This creates the <b>Owner</b> of a new workspace — full control of your business, posts and settings.
           Managers and staff don&apos;t sign up here; you invite them later from <b>Organization → People</b>.
@@ -95,7 +95,7 @@ function SignupForm() {
         <div>
           <label className="label" htmlFor="username">Username</label>
           <input id="username" type="text" autoComplete="username" className="input" placeholder="brightminds_pune" value={username} onChange={(e) => setUsername(e.target.value)} required minLength={3} />
-          <p className="mt-1 text-[11px] text-ink-400">Letters, numbers, dots &amp; underscores. This is what you&apos;ll log in with.</p>
+          <p className="mt-1.5 text-xs text-ink-400">Letters, numbers, dots &amp; underscores. This is what you&apos;ll log in with.</p>
         </div>
         <div>
           <label className="label" htmlFor="email">Email <span className="font-normal text-ink-400">(optional — for receipts &amp; reminders)</span></label>
@@ -118,27 +118,27 @@ function SignupForm() {
             <button
               type="button"
               onClick={() => setShow((s) => !s)}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-ink-400 hover:text-ink-700"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-ink-400 hover:text-ink-700"
               aria-label={show ? "Hide password" : "Show password"}
             >
-              {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {show ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
             </button>
           </div>
         </div>
 
-        <label className="flex items-start gap-2 text-xs text-ink-500">
-          <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5" />
+        <label className="flex items-start gap-2.5 text-sm text-ink-500">
+          <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-1 h-4 w-4 shrink-0" />
           <span>I agree to the <a href="/privacy" target="_blank" className="font-medium text-brand-600 hover:underline">Privacy Policy</a>, and I understand my data (and any leads I collect) is handled per the India DPDP Act.</span>
         </label>
 
-        {error && <p className="text-sm font-medium text-rose-600">{error}</p>}
+        {error && <p className="text-[15px] font-medium text-rose-600">{error}</p>}
 
-        <button type="submit" disabled={loading} className="btn-primary w-full">
-          {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Creating…</> : "Create account"}
+        <button type="submit" disabled={loading} className="btn-primary w-full py-3 text-base">
+          {loading ? <><Loader2 className="h-5 w-5 animate-spin" /> Creating…</> : "Create account"}
         </button>
       </form>
 
-      <p className="mt-5 text-center text-sm text-ink-500">
+      <p className="mt-5 text-center text-[15px] text-ink-500">
         Already have an account?{" "}
         <Link href="/login" className="font-semibold text-brand-600 hover:text-brand-700">
           Log in
