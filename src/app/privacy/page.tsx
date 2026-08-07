@@ -83,25 +83,44 @@ export default function PrivacyPage() {
     <div className="min-h-screen bg-ink-50">
       <header className="mx-auto flex max-w-3xl items-center gap-2 px-5 py-5">
         <Link href="/" className="flex items-center gap-2">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-gradient text-white"><Plane className="h-5 w-5 -rotate-45" /></span>
-          <span className="text-lg font-bold tracking-tight">SocialPilot<span className="text-brand-600"> AI</span></span>
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-gradient text-white">
+            <Plane className="h-5 w-5 -rotate-45" />
+          </span>
+          <span className="text-lg font-bold tracking-tight">
+            SocialPilot<span className="text-brand-600"> AI</span>
+          </span>
         </Link>
       </header>
       <main className="mx-auto max-w-3xl px-5 pb-16">
-        <h1 className="text-3xl font-extrabold tracking-tight">Privacy Policy</h1>
-        <p className="mt-2 text-sm text-ink-500">Last updated: 2026. This baseline is written to be India DPDP Act (2023) aware.</p>
+        <h1 className="text-3xl font-extrabold tracking-tight">
+          Privacy Policy
+        </h1>
+        <p className="mt-2 text-sm text-ink-500">
+          Last updated: 2026. This baseline is written to be India DPDP Act
+          (2023) aware.
+        </p>
         <div className="mt-8 space-y-6">
           {sections.map((s) => (
             <section key={s.h}>
               <h2 className="text-lg font-bold">{s.h}</h2>
               {s.p.map((para, i) => (
-                <p key={i} className="mt-2 text-sm leading-relaxed text-ink-600">{para}</p>
+                <p
+                  key={i}
+                  className="mt-2 text-sm leading-relaxed text-ink-600"
+                >
+                  {para}
+                </p>
               ))}
             </section>
           ))}
         </div>
         <div className="mt-10 border-t border-ink-100 pt-6">
-          <Link href="/" className="text-sm font-semibold text-brand-600 hover:underline">&larr; Back to home</Link>
+          <Link
+            href="/"
+            className="text-sm font-semibold text-brand-600 hover:underline"
+          >
+            &larr; Back to home
+          </Link>
         </div>
       </main>
     </div>
