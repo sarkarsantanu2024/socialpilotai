@@ -38,6 +38,16 @@ if (!["trial", "single", "ho", "custom"].includes(plan)) {
   process.exit(1);
 }
 
+// Print which database we're actually talking to — the most common failure is
+// running this against a local/dev DATABASE_URL while the live site uses Neon.
+try {
+  const u = new URL(process.env.DATABASE_URL ?? "");
+  console.log(`Database: ${u.hostname}${u.pathname}`);
+} catch {
+  console.error("DATABASE_URL is missing or unparseable. Set it in .env.local.");
+  process.exit(1);
+}
+
 const prisma = new PrismaClient();
 
 const center = await prisma.tenant.findUnique({
@@ -61,9 +71,21 @@ if (!center) {
 console.log(`Found: ${center.username} — org "${center.organization?.name ?? "(none)"}"`);
 console.log(`  before: center.plan=${center.plan}  org.plan=${center.organization?.plan ?? "-"}  trialEndsAt=${center.trialEndsAt?.toISOString() ?? "-"}`);
 
-// Both are set: trialExpiredForCenter reads the ORG plan, trialExpiredForOrg
-// reads it too, but other gates (can(), centerLimit) may read either.
-await prisma.tenant.update({ where: { id: center.id }, data: { plan, planStatus: "active" } });
+if (!center.organizationId) {
+  console.warn("  NOTE: this center has no organization. trialExpiredForCenter reads the");
+  console.warn("  ORG plan, so a null org resolves to \"trial\" no matter what the center");
+  console.warn("  plan says — clearing trialEndsAt below is what actually unblocks it.");
+}
+
+// Belt and braces. Two independent conditions gate publishing:
+//   planId(org.plan) === "trial"   AND   trialEndsAt < now
+// Setting a paid plan defeats the first; clearing trialEndsAt defeats the
+// second even when the center has no organization row. Do both, so the gate
+// cannot fire for any reason — a demo account must never expire mid-review.
+await prisma.tenant.update({
+  where: { id: center.id },
+  data: { plan, planStatus: "active", trialEndsAt: plan === "trial" ? center.trialEndsAt : null },
+});
 if (center.organizationId) {
   await prisma.organization.update({
     where: { id: center.organizationId },
@@ -73,9 +95,9 @@ if (center.organizationId) {
 
 const after = await prisma.tenant.findUnique({
   where: { id: center.id },
-  select: { plan: true, organization: { select: { plan: true } } },
+  select: { plan: true, trialEndsAt: true, organization: { select: { plan: true } } },
 });
-console.log(`  after:  center.plan=${after?.plan}  org.plan=${after?.organization?.plan ?? "-"}`);
+console.log(`  after:  center.plan=${after?.plan}  org.plan=${after?.organization?.plan ?? "-"}  trialEndsAt=${after?.trialEndsAt?.toISOString() ?? "null"}`);
 console.log("Done. Publishing is no longer trial-gated for this account.");
 
 await prisma.$disconnect();
