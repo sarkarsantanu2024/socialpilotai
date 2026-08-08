@@ -187,7 +187,39 @@ Name each permission out loud at the moment you demonstrate it. Under 3 minutes.
 | 2:10 | Analytics screen with real numbers | "These engagement metrics come from `pages_read_engagement`." |
 | 2:25 | — | "That's the complete flow: Facebook login, permission grant, Page connect, publish, and engagement." |
 
-### 3.3 Check the file before uploading
+### 3.3 Captions (required if the video has no narration)
+
+Requirement 4 asks for "captions and tool-tips, and explain the meaning of buttons and other UI
+elements". It says captions, not narration — so a silent recording is fine **provided** it carries
+on-screen text. A silent, caption-free video fails this outright.
+
+Add these in CapCut or Clipchamp as text overlays. Each on screen **at least 3 seconds**; give
+captions 4, 5 and 10 a full 4-5 seconds, since those are the beats round 1 was rejected for. Large
+text, bottom of frame, with a dark background box so it stays readable over the app's white screens.
+
+| #   | Appears on                          | Caption text                                                                             |
+| --- | ----------------------------------- | ---------------------------------------------------------------------------------------- |
+| 1   | Opening frame                       | SocialPilot AI — social media management for local businesses                              |
+| 2   | SocialPilot login screen            | Step 1: Log in to SocialPilot                                                              |
+| 3   | Organization → Facebook connections | Step 2: Click "Connect" to link a Facebook Page                                            |
+| 4   | **facebook.com login page**         | Step 3: Sign in to Facebook                                                                |
+| 5   | **The blue consent dialog**         | Step 4: The user grants access — pages_show_list, pages_manage_posts, pages_read_engagement |
+| 6   | Page picker list                    | pages_show_list — the app lists the Pages this user manages                                 |
+| 7   | "Connected · Nexvora Demo"          | Page connected                                                                             |
+| 8   | AI Content Studio, generating       | Step 5: Generate a post with AI                                                            |
+| 9   | Clicking Publish now                | pages_manage_posts — publishing to the connected Facebook Page                              |
+| 10  | **The post live on Facebook**       | The post is now live on the Facebook Page                                                  |
+| 11  | Analytics screen                    | pages_read_engagement — engagement metrics for this Page                                    |
+| 12  | Final frame                         | Complete flow: login → permission grant → connect → publish → engagement                    |
+
+No music, and no transitions or effects — a fade between sections reads as a cut, and Meta wants one
+continuous take. Only trim the head and tail (to remove the screen recorder's own UI), never the middle.
+
+When the video has no audio, say so in the reviewer instructions:
+
+> The screencast has no audio narration. Each step is explained with on-screen captions.
+
+### 3.4 Check the file before uploading
 
 Watch it end to end. You must be able to see, unambiguously:
 
@@ -197,8 +229,10 @@ Watch it end to end. You must be able to see, unambiguously:
 - [ ] The post appearing on the real Facebook Page
 - [ ] Real numbers on the Analytics screen
 - [ ] No frame showing the screen-recorder's own UI
+- [ ] Captions present throughout, each readable for at least 3 seconds
+- [ ] Exported as **MP4** — the raw `.webm` from a browser recorder may not play for the reviewer
 
-If any one is missing, re-record. A second rejection for the same reason is much harder to recover from.
+If any one is missing, fix it. A second rejection for the same reason is much harder to recover from.
 
 ---
 
