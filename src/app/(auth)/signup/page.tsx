@@ -4,10 +4,7 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Loader2, Crown, BadgeCheck } from "lucide-react";
-import type { BusinessType } from "@/lib/types";
 import { planLabel } from "@/lib/pricing";
-
-const BUSINESS_TYPES: BusinessType[] = ["coaching", "gym", "playschool", "abacus", "salon", "restaurant"];
 
 function SignupForm() {
   const router = useRouter();
@@ -15,8 +12,6 @@ function SignupForm() {
   const chosenPlan = planLabel(params.get("plan"));
   const [name, setName] = useState("");
   const [business, setBusiness] = useState("");
-  const [type, setType] = useState<BusinessType>("coaching");
-  const [city, setCity] = useState("");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,7 +29,7 @@ function SignupForm() {
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, business, type, city, username, email, password }),
+        body: JSON.stringify({ name, business, username, email, password }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -79,18 +74,6 @@ function SignupForm() {
         <div>
           <label className="label" htmlFor="business">Business name</label>
           <input id="business" className="input" placeholder="Bright Minds Coaching Centre" value={business} onChange={(e) => setBusiness(e.target.value)} required />
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="label" htmlFor="type">Business type</label>
-            <select id="type" className="input capitalize" value={type} onChange={(e) => setType(e.target.value as BusinessType)}>
-              {BUSINESS_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="label" htmlFor="city">City</label>
-            <input id="city" className="input" placeholder="Pune" value={city} onChange={(e) => setCity(e.target.value)} />
-          </div>
         </div>
         <div>
           <label className="label" htmlFor="username">Username</label>
